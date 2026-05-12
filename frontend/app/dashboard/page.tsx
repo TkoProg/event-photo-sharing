@@ -36,9 +36,9 @@ export default function DashboardPage() {
         
         <p className="text-lg text-gray-400 mb-12 max-w-xl font-light">
         Tamo gdje se vaše fotografije pretvaraju u uspomene koje traju.
-Podijelite radost, emocije i uspomene sa svima koji su bili dio trenutka.</p>
+        Podijelite radost, emocije i uspomene sa svima koji su bili dio trenutka.</p>
 
-        {/* Floating slike (IZNAD dugmadi) */}
+        {/* Floating slike */}
         <div className="relative w-full max-w-4xl h-[320px] sm:h-[400px] mb-12">
           {/* Lijeva slika */}
           <div className="absolute top-10 left-4 sm:left-10 w-40 sm:w-64 h-48 sm:h-56 bg-gray-800 rounded-2xl rotate-[-12deg] overflow-hidden border border-white/10 shadow-2xl hover:rotate-0 hover:scale-110 transition-all duration-500 cursor-pointer hover:z-30">
@@ -56,32 +56,37 @@ Podijelite radost, emocije i uspomene sa svima koji su bili dio trenutka.</p>
           </div>
         </div>
 
-        {/* Dugmad za odabir akcije (ISPOD slika) */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full justify-center z-20 pb-16">
-          <Link href="/join" className="w-full sm:w-auto px-8 py-4 bg-white text-black rounded-full text-sm font-bold hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.2)]">
-            Unesi kod događaja
+        {/* Dugmad i Admin Panel */}
+        <div className="flex flex-col items-center gap-4 w-full max-w-lg mx-auto z-20 pb-16">
+          
+          {/* Glavna dugmad u jednom redu */}
+          <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
+            <Link href="/join" className="w-full sm:w-auto px-8 py-4 bg-white text-black rounded-full text-sm font-bold hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.2)]">
+              Unesi kod događaja
+            </Link>
+            <Link href="/organizer/events" className="w-full sm:w-auto px-8 py-4 bg-white/5 border border-white/10 text-white rounded-full text-sm font-bold hover:bg-white/10 transition-colors backdrop-blur-md">
+              Moji događaji
+            </Link>
+          </div>
+
+          {/* Admin Panel - ISPOD dugmadi */}
+          <Link href="/admin" className="w-full block group">
+            <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-xl flex items-center justify-between group-hover:border-[#e60023]/50 transition-all">
+              <div className="flex items-center gap-4 text-left">
+                <div className="w-12 h-12 bg-[#e60023]/20 rounded-2xl flex items-center justify-center text-[#e60023]">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-white">Admin Panel</h3>
+                  <p className="text-gray-500 text-xs text-left">Upravljanje korisnicima i sistemom</p>
+                </div>
+              </div>
+              <div className="text-gray-500 group-hover:text-white transition-colors">
+                &rarr;
+              </div>
+            </div>
           </Link>
-          <Link href="/organizer/events" className="w-full sm:w-auto px-8 py-4 bg-white/5 border border-white/10 text-white rounded-full text-sm font-bold hover:bg-white/10 transition-colors backdrop-blur-md">
-            Moji događaji
-          </Link>
-          {/* Admin sekcija - dodaj ovo ispod ostalih kartica */}
-<Link href="/admin" className="mt-8 w-full block group">
-  <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-xl flex items-center justify-between group-hover:border-red-500/50 transition-all">
-    <div className="flex items-center gap-4">
-      <div className="w-12 h-12 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-500">
-        {/* Ikona ključa ili štitnika */}
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      </div>
-      <div>
-        <h3 className="font-bold text-lg">Admin Panel</h3>
-        <p className="text-gray-500 text-xs">Upravljanje korisnicima i sistemom</p>
-      </div>
-    </div>
-    <div className="text-gray-500 group-hover:text-white transition-colors">
-      &rarr;
-    </div>
-  </div>
-</Link>
+
         </div>
         
       </main>

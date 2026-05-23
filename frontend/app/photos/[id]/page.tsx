@@ -1,13 +1,12 @@
 'use client';
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
 export default function PhotoDetailsPage() {
   const params = useParams();
   const id = params?.id;
 
-  // React State za upravljanje lajkovima i komentarima
+  // --- STATE VARIJABLE ---
   const [likes, setLikes] = useState(12);
   const [isLiked, setIsLiked] = useState(false);
   
@@ -17,21 +16,30 @@ export default function PhotoDetailsPage() {
   ]);
   const [newComment, setNewComment] = useState('');
 
-  // Funkcija za lajkanje
+  // Tagovi i polje za unos novog taga
+  const [tags, setTags] = useState(['Samra', 'Gost 3']);
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [newTagInput, setNewTagInput] = useState('');
+
+  // --- FUNKCIJE ---
   const handleLike = () => {
-    if (isLiked) {
-      setLikes(likes - 1);
-    } else {
-      setLikes(likes + 1);
-    }
+    setLikes(isLiked ? likes - 1 : likes + 1);
     setIsLiked(!isLiked);
   };
 
-  // Funkcija za dodavanje komentara
   const handleAddComment = () => {
     if (newComment.trim() !== '') {
       setComments([...comments, { id: Date.now(), user: 'Ja', text: newComment }]);
-      setNewComment(''); // Očisti polje nakon slanja
+      setNewComment('');
+    }
+  };
+
+  // Funkcija za spašavanje novog taga
+  const handleAddTag = () => {
+    if (newTagInput.trim() !== '') {
+      setTags([...tags, newTagInput.trim()]); // Dodaje novi tag u niz
+      setNewTagInput(''); // Čisti polje
+      setIsAddingTag(false); // Zatvara polje za unos
     }
   };
 
@@ -49,28 +57,75 @@ export default function PhotoDetailsPage() {
           </button>
         </header>
 
-        {/* Glavni kontejner - podijeljen na sliku i komentare */}
+        {/* Glavni kontejner */}
         <div className="flex flex-col md:flex-row gap-8 bg-white/5 border border-white/10 rounded-3xl overflow-hidden p-6">
           
           {/* Lijeva strana: Slika */}
           <div className="flex-1 flex justify-center items-center bg-black/50 rounded-2xl overflow-hidden">
-            {/* Koristimo dinamički link slike na osnovu ID-ja */}
             <img 
-              src={`https://picsum.photos/seed/slika${id}/800/600`} 
-              alt={`Slika ${id}`} 
-              className="max-w-full h-auto object-contain rounded-xl"
-            />
+            src={`https://picsum.photos/seed/photo-${id}/800/600`} 
+            alt={`Slika ${id}`} 
+            className="max-w-full h-auto object-contain rounded-xl"
+/>
           </div>
 
-          {/* Desna strana: Detalji, Lajkovi i Komentari */}
+          {/* Desna strana: Detalji */}
           <div className="w-full md:w-96 flex flex-col">
             
             <div className="mb-6">
               <h2 className="text-2xl font-bold mb-2">Detalji fotografije</h2>
-              <p className="text-sm text-gray-400">Postavio: Gost 1</p>
+              <p className="text-sm text-gray-400 mb-4">Postavio: Gost 1</p>
+              
+              {/* TAGOVI SEKCIJA */}
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="text-sm text-gray-500 mr-2">Tagovi:</span>
+                
+                {/* Prikaz postojećih tagova */}
+                {tags.map((tag, index) => (
+                  <span key={index} className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-semibold">
+                    @{tag}
+                  </span>
+                ))}
+
+                {/* Polje za unos ili dugme "+ Dodaj tag" */}
+{isAddingTag ? (
+  <div className="flex items-center gap-2">
+    <input 
+      type="text" 
+      value={newTagInput}
+      onChange={(e) => setNewTagInput(e.target.value)}
+      placeholder="Unesi ime..."
+      className="bg-black border border-white/20 rounded-full px-3 py-1 text-xs focus:outline-none focus:border-white/50 w-24 text-white"
+      onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+      autoFocus
+    />
+    <button 
+      onClick={handleAddTag} 
+      className="text-white hover:opacity-70 text-sm transition-opacity"
+      title="Spasi"
+    >
+      ✓
+    </button>
+    <button 
+      onClick={() => setIsAddingTag(false)} 
+      className="text-white hover:opacity-70 text-sm transition-opacity"
+      title="Odustani"
+    >
+      ✕
+    </button>
+  </div>
+) : (
+  <button 
+    onClick={() => setIsAddingTag(true)}
+    className="bg-white/10 text-gray-300 hover:bg-white/20 px-3 py-1 rounded-full text-xs transition-colors"
+  >
+    + Dodaj tag
+  </button>
+)} 
+              </div>
             </div>
 
-            {/* Sekcija za lajkanje */}
+            {/* Lajkovi */}
             <div className="flex items-center gap-4 mb-8 pb-6 border-b border-white/10">
               <button 
                 onClick={handleLike}
@@ -83,7 +138,7 @@ export default function PhotoDetailsPage() {
               </button>
             </div>
 
-            {/* Lista komentara */}
+            {/* Komentari */}
             <div className="flex-1 overflow-y-auto pr-2 mb-6 space-y-4">
               <h3 className="font-semibold text-gray-300 mb-4">Komentari ({comments.length})</h3>
               {comments.map((comment) => (
@@ -94,7 +149,7 @@ export default function PhotoDetailsPage() {
               ))}
             </div>
 
-            {/* Polje za unos novog komentara */}
+            {/* Novi komentar */}
             <div className="mt-auto flex gap-2">
               <input 
                 type="text" 

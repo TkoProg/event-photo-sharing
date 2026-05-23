@@ -44,9 +44,10 @@ export default function EventGalleryPage() {
         {/* Grid sa slikama */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {mockFotografije.map((foto) => (
-            <div 
+            <Link 
+              href={`/photos/${foto.id}`} 
               key={foto.id} 
-              className="border border-white/10 bg-white/5 rounded-2xl overflow-hidden hover:border-white/30 transition-colors group cursor-pointer"
+              className="border border-white/10 bg-white/5 rounded-2xl overflow-hidden hover:border-white/30 transition-colors group cursor-pointer block"
             >
               <div className="relative h-48 overflow-hidden">
                 <img 
@@ -61,7 +62,7 @@ export default function EventGalleryPage() {
                   <span className="text-red-500">❤️</span> {foto.likes}
                 </span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
 

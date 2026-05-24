@@ -2,7 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 
-// Dodajemo React.use() da popravimo grešku sa slike
+
 export default function EventGalleryPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = React.use(params);
   const id = resolvedParams.id;

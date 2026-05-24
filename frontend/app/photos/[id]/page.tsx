@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
+// 1. Proširen interfejs sa isFavorite
 interface Photo {
   id: number;
   url: string;
@@ -9,7 +10,10 @@ interface Photo {
   likes?: number;
   isLiked?: boolean;
   isFavorite?: boolean;
+  comments?: { user: string; text: string }[];
 }
+
+
 
 const MOCK_PHOTOS: Photo[] = [
   { id: 1, url: 'https://picsum.photos/seed/photo-1/400/400', tags: ['mlada', 'vjenčanje', 'ceremonija'], likes: 12, isLiked: false, isFavorite: false },
@@ -22,6 +26,7 @@ export default function PhotoDetail() {
   const params = useParams();
   const id = params?.id as string;
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
   
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [eventStorageKey, setEventStorageKey] = useState<string>('');
@@ -30,6 +35,38 @@ export default function PhotoDetail() {
 
   const [photosList, setPhotosList] = useState<Photo[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
+
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  const [newComment, setNewComment] = useState('');
+
+  const handleAddComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim() || !photo) return;
+
+    const newCommentObj = { user: 'Ja', text: newComment };
+    
+    // 1. Kreiramo novu verziju slike sa novim komentarom
+    const updatedPhoto = { 
+      ...photo, 
+      comments: [...(photo.comments || []), newCommentObj] 
+    };
+
+    // 2. Ažuriramo stanje komponente da se odmah vidi komentar
+    setPhoto(updatedPhoto);
+
+    // 3. Ručno dohvatamo i ažuriramo localStorage direktno ovdje
+    const allPhotos: Photo[] = JSON.parse(localStorage.getItem(eventStorageKey) || '[]');
+    const updatedPhotos = allPhotos.map(p => 
+      String(p.id) === String(id) ? updatedPhoto : p
+    );
+    
+    localStorage.setItem(eventStorageKey, JSON.stringify(updatedPhotos));
+    
+    // 4. Resetujemo polje
+    setNewComment('');
+  };
 
   useEffect(() => {
     let foundPhotos: Photo[] = [];
@@ -44,9 +81,13 @@ export default function PhotoDetail() {
       }
     }
 
-    if (foundPhotos.length === 0) {
-      const hasMock = MOCK_PHOTOS.some((p) => String(p.id) === String(id));
-      if (hasMock) { foundPhotos = MOCK_PHOTOS; foundKey = 'event_photos_1'; }
+    if (foundPhotos.length > 0) {
+    const sorted = [...foundPhotos].sort((a, b) => b.id - a.id);
+    setPhotosList(sorted);
+    setEventStorageKey(foundKey);
+    const idx = sorted.findIndex((p) => String(p.id) === String(id));
+    setCurrentIndex(idx);
+    setPhoto(sorted[idx]);
     }
 
     if (foundPhotos.length > 0) {
@@ -57,6 +98,7 @@ export default function PhotoDetail() {
       setCurrentIndex(idx);
       setPhoto(sorted[idx]);
     }
+    setLoading(false); 
   }, [id]);
 
   const navigateTo = (index: number) => {
@@ -75,24 +117,17 @@ export default function PhotoDetail() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, photosList]);
 
-  // Pametna funkcija koja rješava problem sa ažuriranjem testnih slika
-  const savePhotoUpdate = (updatedPhoto: Photo) => {
-    let allPhotos: Photo[] = JSON.parse(localStorage.getItem(eventStorageKey) || '[]');
-    
-    // Ako je baza prazna, napuni je sa MOCK_PHOTOS kao početnom tačkom
-    if (allPhotos.length === 0) {
-      allPhotos = [...MOCK_PHOTOS];
-    }
-    
-    const exists = allPhotos.some(p => String(p.id) === String(id));
-    let updatedPhotos;
-    if (exists) {
-      updatedPhotos = allPhotos.map(p => String(p.id) === String(id) ? updatedPhoto : p);
-    } else {
-      updatedPhotos = [...allPhotos, updatedPhoto];
-    }
-    
-    localStorage.setItem(eventStorageKey, JSON.stringify(updatedPhotos));
+  const minSwipeDistance = 50; 
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null); 
+    setTouchStart(e.targetTouches[0].clientX); 
+  };
+  const onTouchMove = (e: React.TouchEvent) => setTouchEnd(e.targetTouches[0].clientX);
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    if (distance > minSwipeDistance && currentIndex < photosList.length - 1) navigateTo(currentIndex + 1);
+    if (distance < -minSwipeDistance && currentIndex > 0) navigateTo(currentIndex - 1);
   };
 
   const handleAddTag = (e: React.FormEvent) => {
@@ -103,7 +138,10 @@ export default function PhotoDetail() {
       const updatedTags = [...(photo.tags || []), tag];
       const updatedPhoto = { ...photo, tags: updatedTags };
       setPhoto(updatedPhoto);
-      savePhotoUpdate(updatedPhoto);
+      const allPhotos: Photo[] = JSON.parse(localStorage.getItem(eventStorageKey) || '[]');
+      const exists = allPhotos.some(p => String(p.id) === String(id));
+      let updatedPhotos = exists ? allPhotos.map(p => String(p.id) === String(id) ? updatedPhoto : p) : [...allPhotos, updatedPhoto];
+      localStorage.setItem(eventStorageKey, JSON.stringify(updatedPhotos));
     }
     setNewTag('');
   };
@@ -113,7 +151,9 @@ export default function PhotoDetail() {
     const updatedTags = photo.tags?.filter(tag => tag !== tagToRemove);
     const updatedPhoto = { ...photo, tags: updatedTags };
     setPhoto(updatedPhoto);
-    savePhotoUpdate(updatedPhoto);
+    const allPhotos: Photo[] = JSON.parse(localStorage.getItem(eventStorageKey) || '[]');
+    const updatedPhotos = allPhotos.map(p => String(p.id) === String(id) ? updatedPhoto : p);
+    localStorage.setItem(eventStorageKey, JSON.stringify(updatedPhotos));
   };
 
   const handleLike = () => {
@@ -123,15 +163,20 @@ export default function PhotoDetail() {
     const newLikesCount = newIsLiked ? currentLikes + 1 : currentLikes - 1;
     const updatedPhoto = { ...photo, likes: newLikesCount, isLiked: newIsLiked };
     setPhoto(updatedPhoto);
-    savePhotoUpdate(updatedPhoto);
+    const allPhotos: Photo[] = JSON.parse(localStorage.getItem(eventStorageKey) || '[]');
+    const updatedPhotos = allPhotos.map(p => String(p.id) === String(id) ? updatedPhoto : p);
+    localStorage.setItem(eventStorageKey, JSON.stringify(updatedPhotos));
   };
 
+  // 🚀 LOGIKA ZA FAVORITE 🚀
   const handleFavorite = () => {
     if (!photo) return;
     const newIsFavorite = !photo.isFavorite;
     const updatedPhoto = { ...photo, isFavorite: newIsFavorite };
     setPhoto(updatedPhoto);
-    savePhotoUpdate(updatedPhoto);
+    const allPhotos: Photo[] = JSON.parse(localStorage.getItem(eventStorageKey) || '[]');
+    const updatedPhotos = allPhotos.map(p => String(p.id) === String(id) ? updatedPhoto : p);
+    localStorage.setItem(eventStorageKey, JSON.stringify(updatedPhotos));
   };
 
   const handleBackToGallery = () => {
@@ -151,22 +196,30 @@ export default function PhotoDetail() {
     handleBackToGallery();
   };
 
-  if (!photo) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
-        <p className="text-xl text-gray-500 animate-pulse">Slika nije pronađena :(</p>
-      </div>
-    );
-  }
+  if (loading) {
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+    </div>
+  );
+}
+
+if (!photo) {
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
+      <p className="text-xl text-gray-500">Slika nije pronađena :(</p>
+    </div>
+  );
+}
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-12 relative overflow-hidden w-full max-w-[100vw]">
       
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full shadow-2xl">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
+          <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
             <h3 className="text-2xl font-bold mb-4 text-white">Brisanje slike</h3>
-            <p className="text-gray-400 mb-8">Jesi li sigurna da želiš trajno obrisati ovu sliku?</p>
+            <p className="text-gray-400 mb-8">Želiš li trajno obrisati ovu sliku?</p>
             <div className="flex gap-4">
               <button onClick={() => setShowDeleteModal(false)} className="flex-1 px-4 py-3 bg-white/5 rounded-xl hover:bg-white/10 text-white font-semibold">Odustani</button>
               <button onClick={confirmDelete} className="flex-1 px-4 py-3 bg-red-500 rounded-xl hover:bg-red-600 text-white font-bold shadow-lg shadow-red-500/20">Izbriši</button>
@@ -186,7 +239,10 @@ export default function PhotoDetail() {
 
       <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-10 w-full">
         
-        <div className="flex-1 bg-[#111] p-4 rounded-3xl border border-white/5 flex items-center justify-center relative group min-h-[50vh] lg:min-h-[70vh] w-full">
+        <div 
+          className="flex-1 bg-[#111] p-4 rounded-3xl border border-white/5 flex items-center justify-center relative group min-h-[50vh] lg:min-h-[70vh] w-full"
+          onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+        >
           <button onClick={() => navigateTo(currentIndex - 1)} disabled={currentIndex <= 0} className="absolute left-2 md:left-4 bg-black/50 md:bg-black/60 backdrop-blur-md p-2 md:p-3 rounded-full border border-white/10 text-white hover:bg-white hover:text-black transition-all z-10 disabled:opacity-0 disabled:pointer-events-none opacity-100 md:opacity-0 group-hover:opacity-100">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
           </button>
@@ -220,7 +276,10 @@ export default function PhotoDetail() {
           </div>
 
           <div className="bg-[#111] p-6 rounded-3xl border border-white/5 space-y-4">
+            
+            {/* 🚀 LINIJA SA LAJKOVIMA I DUGMETOM ZA FAVORITE 🚀 */}
             <div className="flex items-center justify-between border-b border-white/5 pb-4">
+               
                <div className="flex items-center gap-4">
                  <button onClick={handleLike} className="text-3xl hover:scale-110 transition-transform active:scale-95">
                    {photo.isLiked ? '❤️' : '🤍'}
@@ -228,6 +287,7 @@ export default function PhotoDetail() {
                  <span className="font-bold text-lg text-white">{photo.likes || 0} lajkova</span>
                </div>
 
+               {/* Dugme za Favorite */}
                <button
                  onClick={handleFavorite}
                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
@@ -238,18 +298,38 @@ export default function PhotoDetail() {
                >
                  {photo.isFavorite ? '⭐ U favoritima' : '☆ Dodaj u favorite'}
                </button>
+
             </div>
             
-            <h3 className="font-bold text-white">Komentari</h3>
-            <div className="space-y-3">
-              <div className="bg-black/50 p-3 rounded-xl border border-white/5">
-                <p className="text-xs font-bold text-gray-400">Amra</p>
-                <p className="text-sm text-white">Predivna slika! 😍</p>
-              </div>
-              <div className="bg-black/50 p-3 rounded-xl border border-white/5">
-                <p className="text-xs font-bold text-gray-400">Dino</p>
-                <p className="text-sm text-white">Odličan ugao hvatanja.</p>
-              </div>
+
+            <h3 className="font-bold text-white">
+              Komentari ({photo.comments?.length ?? 0})
+            </h3>
+
+            <form onSubmit={handleAddComment} className="flex gap-2">
+              <input 
+                type="text" 
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Napiši komentar..." 
+                className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-white/30 outline-none" 
+              />
+              <button type="submit" className="bg-white text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-200">
+                ➤
+              </button>
+            </form>
+
+            <div className="space-y-3 max-h-60 overflow-y-auto">
+              {(!photo.comments || photo.comments.length === 0) ? (
+                <p className="text-sm text-gray-500 italic">Još nema komentara.</p>
+              ) : (
+                photo.comments.map((c, index) => (
+                  <div key={index} className="bg-black/50 p-3 rounded-xl border border-white/5">
+                    <p className="text-xs font-bold text-gray-400">{c.user}</p>
+                    <p className="text-sm text-white">{c.text}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

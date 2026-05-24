@@ -765,6 +765,9 @@ export default function EventDashboard() {
       <div className="max-w-6xl mx-auto w-full">
         
         <header className="mb-6 md:mb-10 w-full">
+          <Link href="/organizer/events" className="inline-flex items-center gap-2 text-gray-500 hover:text-white text-sm mb-4 transition-colors">
+            ← Moji događaji
+          </Link>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight truncate">{eventName}</h1>
           <p className="text-gray-400 mt-2 text-sm md:text-lg">Dobrodošli u kontrolnu ploču događaja.</p>
         </header>

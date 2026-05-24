@@ -1,67 +1,87 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 export default function NewEventPage() {
+  const [jezik, setJezik] = useState('BS');
+
+  useEffect(() => {
+    const sacuvaniJezik = localStorage.getItem('izabraniJezik');
+    if (sacuvaniJezik) {
+      setJezik(sacuvaniJezik);
+    }
+
+    const provjeriJezik = () => {
+      const trenutni = localStorage.getItem('izabraniJezik');
+      if (trenutni) setJezik(trenutni);
+    };
+
+    window.addEventListener('storage', provjeriJezik);
+    return () => window.removeEventListener('storage', provjeriJezik);
+  }, []);
+
+  const promijeniJezik = (noviJezik: string) => {
+    setJezik(noviJezik);
+    localStorage.setItem('izabraniJezik', noviJezik);
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const prevodi = {
+    BS: {
+      naslov: "Novi događaj",
+      podnaslov: "Unesite detalje za novu galeriju.",
+      placeholderNaziv: "npr. Vjenčanje Amra & Dino",
+      placeholderLokacija: "Lokacija (npr. Sarajevo)",
+      placeholderOpis: "Kratki opis događaja...",
+      dugme: "Kreiraj događaj",
+      nazad: "← Odustani i vrati se nazad"
+    },
+    EN: {
+      naslov: "New Event",
+      podnaslov: "Enter details for the new gallery.",
+      placeholderNaziv: "e.g. Wedding Amra & Dino",
+      placeholderLokacija: "Location (e.g. Sarajevo)",
+      placeholderOpis: "Short event description...",
+      dugme: "Create Event",
+      nazad: "← Cancel and go back"
+    }
+  };
+
+  const t = jezik === 'BS' ? prevodi.BS : prevodi.EN;
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center relative overflow-hidden font-sans py-20">
-      
-      {/* Pozadinski glow efekat */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#e60023]/20 blur-[120px] rounded-full pointer-events-none"></div>
 
-      {/* Staklena kartica */}
       <div className="relative z-10 w-full max-w-[380px] p-10 bg-white/5 border border-white/10 backdrop-blur-xl rounded-[2rem] shadow-2xl text-center">
-        
+        <div className="flex justify-end mb-4">
+          <button 
+            type="button"
+            onClick={() => promijeniJezik(jezik === 'BS' ? 'EN' : 'BS')}
+            className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[10px] font-semibold tracking-wider text-gray-400 hover:text-white transition-all"
+          >
+            {jezik === 'BS' ? '🇬🇧 EN' : '🇧🇦 BS'}
+          </button>
+        </div>
+
         <div className="mb-8 text-2xl font-light tracking-tighter italic">
           Event<span className="font-semibold text-[#e60023]">Photo</span>
         </div>
 
-        <h1 className="text-xl font-medium mb-2 tracking-tight text-white">Novi događaj</h1>
-        <p className="text-xs text-gray-400 mb-6 font-light">Unesite detalje za novu galeriju.</p>
+        <h1 className="text-xl font-medium mb-2 tracking-tight text-white">{t.naslov}</h1>
+        <p className="text-xs text-gray-400 mb-6 font-light">{t.podnaslov}</p>
 
         <form className="space-y-4">
-          <input 
-            name="naziv" 
-            type="text" 
-            placeholder="npr. Vjenčanje Amra & Dino"
-            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500"
-          />
-          
-          <input 
-            name="datum"
-            type="date" 
-            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white [color-scheme:dark]"
-          />
-          
-          <input 
-            name="lokacija"
-            type="text" 
-            placeholder="Lokacija (npr. Sarajevo)"
-            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500"
-          />
-
-          {/* Dodan opis jer ga Tamir traži u bazi (sekcija 10.2) */}
-          <textarea 
-            name="opis"
-            placeholder="Kratki opis događaja..."
-            rows={2}
-            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500 resize-none"
-          ></textarea>
-          
-          <button 
-            type="button"
-            className="w-full bg-white text-black py-4 rounded-2xl text-sm font-bold hover:scale-[1.02] transition-transform mt-4 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
-          >
-            Kreiraj događaj
-          </button>
+          <input type="text" placeholder={t.placeholderNaziv} className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" />
+          <input type="date" className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white [color-scheme:dark]" />
+          <input type="text" placeholder={t.placeholderLokacija} className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" />
+          <textarea placeholder={t.placeholderOpis} rows={2} className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500 resize-none"></textarea>
+          <button type="button" className="w-full bg-white text-black py-4 rounded-2xl text-sm font-bold hover:scale-[1.02] transition-transform mt-4 shadow-[0_0_20px_rgba(255,255,255,0.1)]">{t.dugme}</button>
         </form>
 
         <div className="mt-8 pt-6 border-t border-white/10">
-          <Link href="/organizer/events" className="text-xs text-gray-400 hover:text-white transition-colors">
-            &larr; Odustani i vrati se nazad
-          </Link>
+          <Link href="/organizer/events" className="text-xs text-gray-400 hover:text-white transition-colors">{t.nazad}</Link>
         </div>
-        
       </div>
     </div>
   );

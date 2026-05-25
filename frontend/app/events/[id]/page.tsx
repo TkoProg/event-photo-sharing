@@ -428,6 +428,10 @@ function AlbumsTab({ eventId }: { eventId: string }) {
   // Spajamo Favorite sa našim novim, tačnim albumima
   const allVisibleAlbums = [favoritesAlbum, ...realAlbums];
 
+export default function EventGalleryPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = React.use(params);
+  const id = resolvedParams.id;
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center mb-8">

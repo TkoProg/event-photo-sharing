@@ -31,11 +31,51 @@ export default function AlbumDetails() {
   const [albumName, setAlbumName] = useState('Učitavanje...');
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
+  const [jezik, setJezik] = useState('BS');
+
+useEffect(() => {
+  const jezik = localStorage.getItem('izabraniJezik') || 'BS';
+  
+  if (albumId === 'favorites') {
+    setAlbumName(jezik === 'BS' ? '⭐ Favoriti' : '⭐ Favorites');
+    // ... ostatak koda za dohvaćanje slika
+  }
+}, [albumId]);
+
+useEffect(() => {
+  const sacuvani = localStorage.getItem('izabraniJezik');
+  if (sacuvani) setJezik(sacuvani);
+  const provjeri = () => {
+    const trenutni = localStorage.getItem('izabraniJezik');
+    if (trenutni) setJezik(trenutni);
+  };
+  window.addEventListener('storage', provjeri);
+  return () => window.removeEventListener('storage', provjeri);
+}, []);
+
+const prevodi = {
+  BS: {
+    nazad: '← Nazad na albume',
+    fotografija: 'fotografija',
+    zatvori: '✕ Zatvori',
+    albumPrazan: 'Ovaj album je trenutno prazan.',
+  },
+  EN: {
+    nazad: '← Back to albums',
+    fotografija: 'photos',
+    zatvori: '✕ Close',
+    albumPrazan: 'This album is currently empty.',
+  }
+};
+
+  const t = jezik === 'BS' ? prevodi.BS : prevodi.EN;
+
   useEffect(() => {
+    const jezik = localStorage.getItem('izabraniJezik') || 'BS';
     if (!eventId || !albumId) return;
 
     if (albumId === 'favorites') {
-      setAlbumName('⭐ Favoriti');
+      setAlbumName(jezik === 'BS' ? '⭐ Favoriti' : '⭐ Favorites');
       const savedPhotos = localStorage.getItem(`event_photos_${eventId}`);
       const allPhotos: Photo[] = savedPhotos ? JSON.parse(savedPhotos) : MOCK_PHOTOS;
       setPhotos(allPhotos.filter(p => p.isFavorite === true));
@@ -106,7 +146,7 @@ export default function AlbumDetails() {
               onClick={() => setSelectedIndex(null)}
               className="absolute top-4 right-4 text-gray-400 hover:text-white bg-white/10 hover:bg-white/20 w-10 h-10 rounded-full flex items-center justify-center transition-all text-lg"
             >
-              ✕
+              {t.zatvori}
             </button>
 
             {/* Strelica lijevo */}
@@ -153,19 +193,19 @@ export default function AlbumDetails() {
           onClick={() => router.push(`/events/${eventId}?tab=albums`)}
           className="text-gray-500 hover:text-white text-sm mb-6 flex items-center gap-2 transition-colors"
         >
-          ← Nazad na albume
+          {t.nazad}
         </button>
 
         <header className="mb-10">
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">{albumName}</h1>
-          <p className="text-gray-400 mt-3 text-sm md:text-lg">{photos.length} fotografija</p>
+          <p className="text-gray-400 mt-3 text-sm md:text-lg">{photos.length} {t.fotografija}</p>
         </header>
 
         {/* ─── Grid ─────────────────────────────────────────────────────────── */}
         {photos.length === 0 ? (
           <div className="text-center py-20 text-gray-500 bg-[#111] rounded-3xl border border-white/5">
             <p className="text-4xl mb-3">📭</p>
-            <p>Ovaj album je trenutno prazan.</p>
+            <p>{t.albumPrazan}</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">

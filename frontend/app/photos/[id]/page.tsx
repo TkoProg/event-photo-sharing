@@ -41,27 +41,80 @@ export default function PhotoDetail() {
 
   const [newComment, setNewComment] = useState('');
 
+  const [jezik, setJezik] = useState('BS');
+
+useEffect(() => {
+  const sacuvani = localStorage.getItem('izabraniJezik');
+  if (sacuvani) setJezik(sacuvani);
+  const provjeri = () => {
+    const trenutni = localStorage.getItem('izabraniJezik');
+    if (trenutni) setJezik(trenutni);
+  };
+  window.addEventListener('storage', provjeri);
+  return () => window.removeEventListener('storage', provjeri);
+}, []);
+
+const prevodi = {
+  BS: {
+    nazad: '← Nazad u galeriju',
+    obrisiSliku: '🗑️ Izbriši sliku',
+    tagovi: 'Tagovi',
+    dodajTag: 'Dodaj tag...',
+    komentari: 'Komentari',
+    napisiKomentar: 'Napiši komentar...',
+    posalji: 'Pošalji',
+    lajkova: 'lajkova',
+    uFavoritima: '⭐ U favoritima',
+    dodajUFavorite: '☆ Dodaj u favorite',
+    nijePronađena: 'Slika nije pronađena :(',
+    brisuceSliku: 'Brisanje slike',
+    sigurna: 'Želiš li trajno obrisati ovu sliku?',
+    odustani: 'Odustani',
+    izbrisi: 'Izbriši',
+    nemaTagova: 'Ova slika nema tagova.',
+    nemaKomentara: 'Još nema komentara.',
+  },
+  EN: {
+    nazad: '← Back to gallery',
+    obrisiSliku: '🗑️ Delete photo',
+    tagovi: 'Tags',
+    dodajTag: 'Add tag...',
+    komentari: 'Comments',
+    napisiKomentar: 'Write a comment...',
+    posalji: 'Send',
+    lajkova: 'likes',
+    uFavoritima: '⭐ In favorites',
+    dodajUFavorite: '☆ Add to favorites',
+    nijePronađena: 'Photo not found :(',
+    brisuceSliku: 'Delete photo',
+    sigurna: 'Do you want to permanently delete this photo?',
+    odustani: 'Cancel',
+    izbrisi: 'Delete',
+    nemaTagova: 'This photo has no tags.',
+    nemaKomentara: 'No comments yet.',
+  }
+};
+
+  const t = jezik === 'BS' ? prevodi.BS : prevodi.EN;
+
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !photo) return;
 
     const newCommentObj = { user: 'Ja', text: newComment };
     
-    // 1. Kreiramo novu verziju slike sa novim komentarom
+    // 1. Kreiramo novu verziju slike
     const updatedPhoto = { 
       ...photo, 
       comments: [...(photo.comments || []), newCommentObj] 
     };
 
-    // 2. Ažuriramo stanje komponente da se odmah vidi komentar
+    // 2. Ažuriramo stanje (UI)
     setPhoto(updatedPhoto);
 
-    // 3. Ručno dohvatamo i ažuriramo localStorage direktno ovdje
+    // 3. Ažuriramo localStorage (Baza)
     const allPhotos: Photo[] = JSON.parse(localStorage.getItem(eventStorageKey) || '[]');
-    const updatedPhotos = allPhotos.map(p => 
-      String(p.id) === String(id) ? updatedPhoto : p
-    );
-    
+    const updatedPhotos = allPhotos.map(p => String(p.id) === String(id) ? updatedPhoto : p);
     localStorage.setItem(eventStorageKey, JSON.stringify(updatedPhotos));
     
     // 4. Resetujemo polje
@@ -69,37 +122,36 @@ export default function PhotoDetail() {
   };
 
   useEffect(() => {
+    setLoading(true); // Počinjemo učitavanje
     let foundPhotos: Photo[] = [];
     let foundKey = '';
 
+    // Traženje ključa u localStorage
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith('event_photos_')) {
         const localPhotos: Photo[] = JSON.parse(localStorage.getItem(key) || '[]');
-        const hasPhoto = localPhotos.some((p) => String(p.id) === String(id));
-        if (hasPhoto) { foundPhotos = localPhotos; foundKey = key; break; }
+        if (localPhotos.some((p) => String(p.id) === String(id))) {
+          foundPhotos = localPhotos;
+          foundKey = key;
+          break;
+        }
       }
-    }
-
-    if (foundPhotos.length > 0) {
-    const sorted = [...foundPhotos].sort((a, b) => b.id - a.id);
-    setPhotosList(sorted);
-    setEventStorageKey(foundKey);
-    const idx = sorted.findIndex((p) => String(p.id) === String(id));
-    setCurrentIndex(idx);
-    setPhoto(sorted[idx]);
     }
 
     if (foundPhotos.length > 0) {
       const sorted = [...foundPhotos].sort((a, b) => b.id - a.id);
       setPhotosList(sorted);
       setEventStorageKey(foundKey);
+      
       const idx = sorted.findIndex((p) => String(p.id) === String(id));
       setCurrentIndex(idx);
       setPhoto(sorted[idx]);
+    } else {
+      setPhoto(null); // Explicitno postavi na null ako nije nađeno
     }
-    setLoading(false); 
-  }, [id]);
+    setLoading(false);
+  }, [id]); // Dodali smo [id] ovdje, ovo je ključno!
 
   const navigateTo = (index: number) => {
     if (index >= 0 && index < photosList.length) {
@@ -207,7 +259,7 @@ export default function PhotoDetail() {
 if (!photo) {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
-      <p className="text-xl text-gray-500">Slika nije pronađena :(</p>
+      <p className="text-xl text-gray-500">{t.nijePronađena}</p>
     </div>
   );
 }
@@ -218,11 +270,11 @@ if (!photo) {
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
           <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 className="text-2xl font-bold mb-4 text-white">Brisanje slike</h3>
-            <p className="text-gray-400 mb-8">Želiš li trajno obrisati ovu sliku?</p>
+            <h3 className="text-2xl font-bold mb-4 text-white">{t.brisuceSliku}</h3>
+            <p className="text-gray-400 mb-8">{t.sigurna}</p>
             <div className="flex gap-4">
-              <button onClick={() => setShowDeleteModal(false)} className="flex-1 px-4 py-3 bg-white/5 rounded-xl hover:bg-white/10 text-white font-semibold">Odustani</button>
-              <button onClick={confirmDelete} className="flex-1 px-4 py-3 bg-red-500 rounded-xl hover:bg-red-600 text-white font-bold shadow-lg shadow-red-500/20">Izbriši</button>
+              <button onClick={() => setShowDeleteModal(false)} className="flex-1 px-4 py-3 bg-white/5 rounded-xl hover:bg-white/10 text-white font-semibold">{t.odustani}</button>
+              <button onClick={confirmDelete} className="flex-1 px-4 py-3 bg-red-500 rounded-xl hover:bg-red-600 text-white font-bold shadow-lg shadow-red-500/20">{t.izbrisi}</button>
             </div>
           </div>
         </div>
@@ -230,10 +282,10 @@ if (!photo) {
 
       <div className="flex justify-between items-center mb-8 max-w-6xl mx-auto w-full">
         <button onClick={handleBackToGallery} className="text-gray-400 hover:text-white flex items-center gap-2 font-semibold transition-all">
-          ← Nazad u galeriju
+          {t.nazad}
         </button>
         <button onClick={() => setShowDeleteModal(true)} className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-4 py-2 rounded-xl text-sm font-bold transition-all">
-          🗑️ Izbriši sliku
+          {t.obrisiSliku}
         </button>
       </div>
 
@@ -256,10 +308,10 @@ if (!photo) {
 
         <div className="lg:w-96 space-y-8 w-full">
           <div className="bg-[#111] p-6 rounded-3xl border border-white/5">
-            <h3 className="text-xl font-bold mb-4 text-white">Tagovi</h3>
+            <h3 className="text-xl font-bold mb-4 text-white">{t.tagovi}</h3>
             <div className="flex flex-wrap gap-2 mb-6">
               {(!photo.tags || photo.tags.length === 0) ? (
-                <p className="text-sm text-gray-500 italic">Ova slika nema tagova.</p>
+                <p className="text-sm text-gray-500 italic">{t.nemaTagova}</p>
               ) : (
                 photo.tags.map(tag => (
                   <span key={tag} className="bg-white/10 text-xs uppercase tracking-wider px-3 py-1.5 rounded-lg text-white font-semibold flex items-center gap-2">
@@ -270,7 +322,7 @@ if (!photo) {
               )}
             </div>
             <form onSubmit={handleAddTag} className="flex gap-2">
-              <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="Dodaj tag..." className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-white/30 outline-none" />
+              <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder={t.dodajTag} className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-white/30 outline-none" />
               <button type="submit" className="bg-white text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-200">+</button>
             </form>
           </div>
@@ -284,7 +336,7 @@ if (!photo) {
                  <button onClick={handleLike} className="text-3xl hover:scale-110 transition-transform active:scale-95">
                    {photo.isLiked ? '❤️' : '🤍'}
                  </button>
-                 <span className="font-bold text-lg text-white">{photo.likes || 0} lajkova</span>
+                 <span className="font-bold text-lg text-white">{photo.likes || 0} {t.lajkova}</span>
                </div>
 
                {/* Dugme za Favorite */}
@@ -296,14 +348,14 @@ if (!photo) {
                      : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10'
                  }`}
                >
-                 {photo.isFavorite ? '⭐ U favoritima' : '☆ Dodaj u favorite'}
+                 {photo.isFavorite ? t.uFavoritima : t.dodajUFavorite}
                </button>
 
             </div>
             
 
             <h3 className="font-bold text-white">
-              Komentari ({photo.comments?.length ?? 0})
+              {t.komentari} ({photo.comments?.length ?? 0})
             </h3>
 
             <form onSubmit={handleAddComment} className="flex gap-2">
@@ -311,7 +363,7 @@ if (!photo) {
                 type="text" 
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Napiši komentar..." 
+                placeholder={t.napisiKomentar} 
                 className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-white/30 outline-none" 
               />
               <button type="submit" className="bg-white text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-200">
@@ -321,7 +373,7 @@ if (!photo) {
 
             <div className="space-y-3 max-h-60 overflow-y-auto">
               {(!photo.comments || photo.comments.length === 0) ? (
-                <p className="text-sm text-gray-500 italic">Još nema komentara.</p>
+                <p className="text-sm text-gray-500 italic">{t.nemaKomentara}</p>
               ) : (
                 photo.comments.map((c, index) => (
                   <div key={index} className="bg-black/50 p-3 rounded-xl border border-white/5">

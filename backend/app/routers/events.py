@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models.event import Event, EventUcesnik
+from app.models.fotografija import Fotografija
 from app.models.korisnik import Korisnik, UlogaKorisnika
 from app.routers.auth import get_trenutni_korisnik, zahtijevaj_uloge
 from app.schemas.event import (
@@ -44,6 +45,17 @@ def broj_ucesnika(session: Session, event_id: int) -> int:
     return len(ucesnici)
 
 
+def broj_fotografija(session: Session, event_id: int) -> int:
+    fotografije = session.exec(
+        select(Fotografija).where(
+            Fotografija.event_id == event_id,
+            Fotografija.obrisana == False,
+        )
+    ).all()
+
+    return len(fotografije)
+
+
 def event_u_response(session: Session, event: Event) -> EventResponse:
     return EventResponse(
         id=event.id,
@@ -54,7 +66,7 @@ def event_u_response(session: Session, event: Event) -> EventResponse:
         kod=event.kod,
         aktivan=event.aktivan,
         organizator_id=event.organizator_id,
-        broj_fotografija=0,
+        broj_fotografija=broj_fotografija(session, event.id),
         broj_ucesnika=broj_ucesnika(session, event.id),
     )
 

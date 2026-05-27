@@ -18,9 +18,10 @@ export default function CreateAlbumPage() {
   ];
 
   const noviAlbum = { 
-    id: Date.now(), // Generiše unikatni ID
+    id: Date.now(), 
     name: albumName, 
-    count: 0 
+    count: 0,
+    shareCode: `ALB-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
   };
   
   localStorage.setItem('moji_albumi', JSON.stringify([...albums, noviAlbum]));

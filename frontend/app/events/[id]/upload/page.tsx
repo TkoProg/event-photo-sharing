@@ -1,75 +1,158 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { uploadFotografije } from '@/lib/api';
+
+const PREVODI = {
+  BS: {
+    naslov: 'Dodaj fotografije',
+    nazad: '← Nazad na galeriju',
+    klikniIliPrevuci: 'Klikni za upload ili prevuci slike',
+    formatInfo: 'PNG, JPG do 10MB • Više slika odjednom',
+    spremnihSlika: 'Odabrane slike',
+    objavi: 'Objavi fotografije',
+    odustani: 'Odustani',
+    uploading: '⏳ Objavljujem...',
+    uspjeh: '✅ Objavljeno!',
+    greska: 'Greška pri uploadu. Pokušaj ponovo.',
+    nisiOdabrala: 'Odaberi barem jednu sliku.',
+  },
+  EN: {
+    naslov: 'Add photos',
+    nazad: '← Back to gallery',
+    klikniIliPrevuci: 'Click to upload or drag images',
+    formatInfo: 'PNG, JPG up to 10MB • Multiple images at once',
+    spremnihSlika: 'Selected photos',
+    objavi: 'Publish photos',
+    odustani: 'Cancel',
+    uploading: '⏳ Publishing...',
+    uspjeh: '✅ Published!',
+    greska: 'Upload failed. Please try again.',
+    nisiOdabrala: 'Select at least one photo.',
+  }
+};
 
 export default function UploadPhotoPage() {
+  const params = useParams();
+  const eventId = Number(params?.id);
   const router = useRouter();
-  const [preview, setPreview] = useState<string | null>(null);
 
-  const handleImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPreview(URL.createObjectURL(file));
+  const jezik = typeof window !== 'undefined'
+    ? (localStorage.getItem('izabraniJezik') ?? 'BS')
+    : 'BS';
+  const t = jezik === 'BS' ? PREVODI.BS : PREVODI.EN;
+
+  const [previews, setPreviews] = useState<{ url: string; file: File }[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const processFiles = (files: FileList | null) => {
+    if (!files) return;
+    Array.from(files)
+      .filter(f => f.type.startsWith('image/'))
+      .forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPreviews(prev => [...prev, { url: reader.result as string, file }]);
+        };
+        reader.readAsDataURL(file);
+      });
+  };
+
+  const handleSubmit = async () => {
+    if (previews.length === 0) { setError(t.nisiOdabrala); return; }
+    setIsUploading(true);
+    setError(null);
+
+    try {
+      // Pravi upload na backend
+      const files = previews.map(p => p.file);
+      await uploadFotografije(eventId, files);
+
+      setDone(true);
+      // Vrati na galeriju nakon 1.5s
+      setTimeout(() => router.push(`/events/${eventId}?tab=photos`), 1500);
+    } catch (err) {
+      setError(t.greska);
+      setIsUploading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-12 font-sans">
-      <div className="max-w-xl mx-auto">
-        
-        {/* Back Button */}
-        <button 
-          onClick={() => router.back()} 
+      <div className="max-w-2xl mx-auto">
+
+        <button
+          onClick={() => router.push(`/events/${eventId}?tab=photos`)}
           className="text-sm text-gray-500 hover:text-white transition-colors mb-8 flex items-center gap-2"
         >
-          <span>&larr;</span> Nazad na galeriju
+          {t.nazad}
         </button>
 
-        <h1 className="text-3xl font-bold mb-8">Dodaj novu fotografiju</h1>
+        <h1 className="text-3xl font-bold mb-8">{t.naslov}</h1>
 
-        {/* Upload Box */}
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-sm">
-          
-          {!preview ? (
-            <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-white/20 rounded-2xl cursor-pointer hover:border-white/50 hover:bg-white/5 transition-all">
-              <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                <svg className="w-10 h-10 mb-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <p className="mb-2 text-sm text-gray-400 font-semibold">Klikni za upload ili prevuci sliku</p>
-                <p className="text-xs text-gray-500">PNG, JPG do 5MB</p>
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl mb-6 text-sm">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-6">
+          {/* Upload zona */}
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
+            onDrop={e => { e.preventDefault(); setIsDragging(false); processFiles(e.dataTransfer.files); }}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-3xl p-12 text-center cursor-pointer transition-all ${isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-white/20 hover:border-white/40 bg-white/5'}`}
+          >
+            <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden"
+              onChange={e => processFiles(e.target.files)} />
+            <div className="text-5xl mb-4">📁</div>
+            <p className="font-semibold text-lg mb-2">{t.klikniIliPrevuci}</p>
+            <p className="text-sm text-gray-500">{t.formatInfo}</p>
+          </div>
+
+          {/* Preview */}
+          {previews.length > 0 && (
+            <div>
+              <p className="text-sm font-semibold text-gray-400 mb-3">{t.spremnihSlika} ({previews.length})</p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {previews.map((p, i) => (
+                  <div key={i} className="relative aspect-square rounded-2xl overflow-hidden border border-white/10">
+                    <img src={p.url} alt="preview" className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => setPreviews(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute top-1.5 right-1.5 bg-black/70 hover:bg-black text-white rounded-full w-6 h-6 text-xs flex items-center justify-center"
+                    >✕</button>
+                  </div>
+                ))}
               </div>
-              <input type="file" className="hidden" onChange={handleImagePick} accept="image/*" />
-            </label>
-          ) : (
-            <div className="relative">
-              <img src={preview} alt="Preview" className="w-full h-64 object-cover rounded-2xl shadow-2xl" />
-              <button 
-                onClick={() => setPreview(null)}
-                className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors"
-              >
-                ✕
-              </button>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="mt-8 flex gap-4">
-            <button 
-              onClick={() => router.back()}
-              className="flex-1 px-6 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-colors font-semibold"
+          {/* Dugmad */}
+          <div className="flex gap-4">
+            <button
+              onClick={() => router.push(`/events/${eventId}?tab=photos`)}
+              className="flex-1 px-6 py-4 rounded-full border border-white/10 hover:bg-white/5 transition-colors font-semibold"
             >
-              Odustani
+              {t.odustani}
             </button>
-            <button 
-              disabled={!preview}
-              className={`flex-1 px-6 py-3 rounded-xl font-bold transition-all ${
-                preview 
-                  ? 'bg-white text-black hover:bg-gray-200' 
-                  : 'bg-white/5 text-gray-600 cursor-not-allowed'
+            <button
+              onClick={handleSubmit}
+              disabled={previews.length === 0 || isUploading || done}
+              className={`flex-1 px-6 py-4 rounded-full font-bold transition-all ${
+                done ? 'bg-green-500 text-white'
+                  : previews.length === 0 || isUploading
+                  ? 'bg-white/10 text-gray-500 cursor-not-allowed'
+                  : 'bg-white text-black hover:bg-gray-200 active:scale-[0.98]'
               }`}
             >
-              Objavi fotografiju
+              {done ? t.uspjeh : isUploading ? t.uploading : t.objavi}
             </button>
           </div>
         </div>

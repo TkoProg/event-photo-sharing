@@ -26,6 +26,19 @@ export default function DashboardPage() {
     window.dispatchEvent(new Event('storage'));
   };
 
+  // ─── ČISTA I SIGURNA ODJAVA BEZ VANJSKIH FUNKCIJA ─────────────────────────
+  const handleLogout = (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    // Brišemo token direktno iz memorije browsera
+    localStorage.removeItem('token');
+    localStorage.clear();
+    
+    // Tvrdo preusmjeravanje na login stranicu (čisti keš)
+    window.location.href = '/';
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
   const prevodi = {
     BS: {
       odjaviSe: "Odjavi se",
@@ -61,6 +74,7 @@ export default function DashboardPage() {
         <div className="text-xl font-bold tracking-tighter">
           Event<span className="text-[#e60023]">Photo</span>
         </div>
+        
         <div className="flex items-center gap-4">
           <button 
             type="button"
@@ -69,7 +83,15 @@ export default function DashboardPage() {
           >
             {jezik === 'BS' ? '🇬🇧 EN' : '🇧🇦 BS'}
           </button>
-          <Link href="/" className="px-5 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors">{t.odjaviSe}</Link>
+
+          {/* SREĐENO DUGME ZA ODJAVU SA ISPRAVNIM REACt KLIKOM */}
+          <button 
+            type="button"
+            onClick={handleLogout}
+            className="px-5 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors bg-transparent border-none cursor-pointer font-sans"
+          >
+            {t.odjaviSe}
+          </button>
         </div>
       </nav>
 

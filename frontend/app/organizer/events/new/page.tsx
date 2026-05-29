@@ -1,9 +1,22 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { kreirajEvent } from '../../../../lib/api'; // Uvozimo funkciju iz api.ts
 
 export default function NewEventPage() {
+  const router = useRouter();
   const [jezik, setJezik] = useState('BS');
+
+  // Stanja za formu
+  const [naziv, setNaziv] = useState('');
+  const [datum, setDatum] = useState('');
+  const [lokacija, setLokacija] = useState('');
+  const [opis, setOpis] = useState('');
+  
+  // Stanja za greške i loading
+  const [greska, setGreska] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
@@ -26,6 +39,32 @@ export default function NewEventPage() {
     window.dispatchEvent(new Event('storage'));
   };
 
+  // Funkcija za slanje podataka na backend
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGreska('');
+    setLoading(true);
+
+    // Osnovna provjera na frontendu
+    if (!naziv || !datum) {
+      setGreska(jezik === 'BS' ? 'Naziv i datum su obavezni.' : 'Name and date are required.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Šaljemo na Tamirov backend
+      await kreirajEvent(naziv, datum, lokacija, opis);
+      
+      // Vraćamo korisnika na listu događaja gdje će vidjeti novi event
+      router.push('/organizer/events');
+    } catch (err: any) {
+      setGreska(err.message || 'Greška pri kreiranju događaja.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const prevodi = {
     BS: {
       naslov: "Novi događaj",
@@ -34,6 +73,7 @@ export default function NewEventPage() {
       placeholderLokacija: "Lokacija (npr. Sarajevo)",
       placeholderOpis: "Kratki opis događaja...",
       dugme: "Kreiraj događaj",
+      ucitavanje: "Kreiranje...",
       nazad: "← Odustani i vrati se nazad"
     },
     EN: {
@@ -43,6 +83,7 @@ export default function NewEventPage() {
       placeholderLokacija: "Location (e.g. Sarajevo)",
       placeholderOpis: "Short event description...",
       dugme: "Create Event",
+      ucitavanje: "Creating...",
       nazad: "← Cancel and go back"
     }
   };
@@ -71,12 +112,49 @@ export default function NewEventPage() {
         <h1 className="text-xl font-medium mb-2 tracking-tight text-white">{t.naslov}</h1>
         <p className="text-xs text-gray-400 mb-6 font-light">{t.podnaslov}</p>
 
-        <form className="space-y-4">
-          <input type="text" placeholder={t.placeholderNaziv} className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" />
-          <input type="date" className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white [color-scheme:dark]" />
-          <input type="text" placeholder={t.placeholderLokacija} className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" />
-          <textarea placeholder={t.placeholderOpis} rows={2} className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500 resize-none"></textarea>
-          <button type="button" className="w-full bg-white text-black py-4 rounded-2xl text-sm font-bold hover:scale-[1.02] transition-transform mt-4 shadow-[0_0_20px_rgba(255,255,255,0.1)]">{t.dugme}</button>
+        {/* Prikaz greške ako backend vrati odbijenicu */}
+        {greska && (
+          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-xs text-red-400 text-left">
+            {greska}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input 
+            type="text" 
+            placeholder={t.placeholderNaziv} 
+            value={naziv}
+            onChange={(e) => setNaziv(e.target.value)}
+            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" 
+          />
+          <input 
+            type="date" 
+            value={datum}
+            onChange={(e) => setDatum(e.target.value)}
+            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white [color-scheme:dark]" 
+          />
+          <input 
+            type="text" 
+            placeholder={t.placeholderLokacija} 
+            value={lokacija}
+            onChange={(e) => setLokacija(e.target.value)}
+            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" 
+          />
+          <textarea 
+            placeholder={t.placeholderOpis} 
+            rows={2} 
+            value={opis}
+            onChange={(e) => setOpis(e.target.value)}
+            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500 resize-none"
+          ></textarea>
+          
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-white text-black py-4 rounded-2xl text-sm font-bold hover:scale-[1.02] active:scale-[0.98] transition-transform mt-4 shadow-[0_0_20px_rgba(255,255,255,0.1)] disabled:bg-gray-400"
+          >
+            {loading ? t.ucitavanje : t.dugme}
+          </button>
         </form>
 
         <div className="mt-8 pt-6 border-t border-white/10">

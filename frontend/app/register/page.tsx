@@ -1,9 +1,19 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation'; // Služi za preusmjeravanje nakon registracije
 import Link from 'next/link';
+import { register, login } from '../../lib/api';
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [jezik, setJezik] = useState('BS');
+  
+  // Stanja za formu
+  const [ime, setIme] = useState('');
+  const [email, setEmail] = useState('');
+  const [lozinka, setLozinka] = useState('');
+  const [greska, setGreska] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
@@ -26,6 +36,37 @@ export default function RegisterPage() {
     window.dispatchEvent(new Event('storage'));
   };
 
+  // Funkcija koja se okida kada korisnik klikne "Registruj se"
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); // Sprječava osvježavanje stranice
+    setGreska('');
+    setLoading(false);
+
+    if (!ime || !email || !lozinka) {
+      setGreska(jezik === 'BS' ? 'Molimo popunite sva polja.' : 'Please fill in all fields.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // 1. Šaljemo podatke na backend registraciju (Podrazumijevano stavljamo ORGANIZATOR)
+      await register(ime, email, lozinka, 'ORGANIZATOR', jezik.toLowerCase());
+      
+      // 2. Nakon uspješne registracije, odmah ga automatski prijavljujemo da dobije token
+      const authData = await login(email, lozinka);
+      
+      // 3. Spašavamo token u localStorage
+      localStorage.setItem('token', authData.access_token);
+      
+      // 4. Preusmjeravamo na dashboard
+      router.push('/dashboard');
+    } catch (err: any) {
+      setGreska(err.message || 'Registracija neuspješna.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const prevodi = {
     BS: {
       podnaslov: "Kreirajte račun za organizaciju događaja.",
@@ -34,7 +75,8 @@ export default function RegisterPage() {
       placeholderLozinka: "Lozinka",
       dugme: "Registruj se",
       pitanje: "Već imaš račun?",
-      akcija: "Prijavi se"
+      akcija: "Prijavi se",
+      ucitavanje: "Registracija..."
     },
     EN: {
       podnaslov: "Create an account to organize events.",
@@ -43,7 +85,8 @@ export default function RegisterPage() {
       placeholderLozinka: "Password",
       dugme: "Register",
       pitanje: "Already have an account?",
-      akcija: "Sign in"
+      akcija: "Sign in",
+      ucitavanje: "Registering..."
     }
   };
 
@@ -70,14 +113,43 @@ export default function RegisterPage() {
 
         <p className="text-xs text-gray-400 mb-6 font-light">{t.podnaslov}</p>
 
-        <form className="space-y-4">
-          <input type="text" placeholder={t.placeholderIme} className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" />
-          <input type="email" placeholder={t.placeholderEmail} className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" />
-          <input type="password" placeholder={t.placeholderLozinka} className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" />
+        {/* PRIKAZ GREŠKE AKO POSTOJI */}
+        {greska && (
+          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-xs text-red-400 text-left">
+            {greska}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input 
+            type="text" 
+            placeholder={t.placeholderIme} 
+            value={ime}
+            onChange={(e) => setIme(e.target.value)}
+            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" 
+          />
+          <input 
+            type="email" 
+            placeholder={t.placeholderEmail} 
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" 
+          />
+          <input 
+            type="password" 
+            placeholder={t.placeholderLozinka} 
+            value={lozinka}
+            onChange={(e) => setLozinka(e.target.value)}
+            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" 
+          />
           
-          <Link href="/dashboard" className="w-full block text-center bg-white text-black py-4 rounded-2xl text-sm font-bold hover:scale-[1.02] transition-transform mt-4 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-            {t.dugme}
-          </Link>
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full block text-center bg-white text-black py-4 rounded-2xl text-sm font-bold hover:scale-[1.02] active:scale-[0.98] transition-transform mt-4 shadow-[0_0_20px_rgba(255,255,255,0.1)] disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {loading ? t.ucitavanje : t.dugme}
+          </button>
         </form>
 
         <div className="mt-8 pt-6 border-t border-white/10">

@@ -1,15 +1,41 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getAdminStats, getAdminUsers, toggleBlokirajKorisnika, ApiAdminStats, ApiKorisnik } from '../../lib/api';
 
-export default function AdminDashboard() {
+export default function AdminDashboardPage() {
   const [jezik, setJezik] = useState('BS');
+  
+  // Stanja za podatke sa backenda
+  const [stats, setStats] = useState<ApiAdminStats | null>(null);
+  const [korisnici, setKorisnici] = useState<ApiKorisnik[]>([]);
+  
+  const [loading, setLoading] = useState(true);
+  const [greska, setGreska] = useState('');
+
+  const ucitajAdminPodatke = async () => {
+    try {
+      setLoading(true);
+      setGreska('');
+      
+      // Paralelno vučemo i statistiku i korisnike
+      const [statsPodaci, korisniciPodaci] = await Promise.all([
+        getAdminStats(),
+        getAdminUsers()
+      ]);
+      
+      setStats(statsPodaci);
+      setKorisnici(korisniciPodaci);
+    } catch (err: any) {
+      setGreska(err.message || 'Nemate ovlaštenje za pristup admin panelu.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
-    if (sacuvaniJezik) {
-      setJezik(sacuvaniJezik);
-    }
+    if (sacuvaniJezik) setJezik(sacuvaniJezik);
 
     const provjeriJezik = () => {
       const trenutni = localStorage.getItem('izabraniJezik');
@@ -17,112 +43,157 @@ export default function AdminDashboard() {
     };
 
     window.addEventListener('storage', provjeriJezik);
+    
+    ucitajAdminPodatke();
+
     return () => window.removeEventListener('storage', provjeriJezik);
   }, []);
 
-  const promijeniJezik = (noviJezik: string) => {
-    setJezik(noviJezik);
-    localStorage.setItem('izabraniJezik', noviJezik);
-    window.dispatchEvent(new Event('storage'));
+  // Funkcija za blokiranje/deblokiranje klikom na dugme
+  const handleBlockToggle = async (korisnikId: number, trenutnoBlokiran: boolean) => {
+    try {
+      // Šaljemo suprotno stanje od trenutnog
+      await toggleBlokirajKorisnika(korisnikId, !trenutnoBlokiran);
+      // Osvježavamo tabelu korisnika da povuče novo stanje
+      const azuriraniKorisnici = await getAdminUsers();
+      setKorisnici(azuriraniKorisnici);
+    } catch (err: any) {
+      alert(err.message || 'Greška pri promjeni statusa korisnika.');
+    }
   };
 
   const prevodi = {
     BS: {
+      naslov: "Admin Panel",
+      podnaslov: "Pregled i upravljanje kompletnim sistemom.",
+      statKorisnici: "Ukupno korisnika",
+      statDogadji: "Ukupno događaja",
+      statFotografije: "Ukupno fotografija",
+      tabelaKorisnici: "Upravljanje korisnicima",
+      kolonaIme: "Ime",
+      kolonaEmail: "Email",
+      kolonaUloga: "Uloga",
+      kolonaAkcija: "Akcija",
+      dugmeBlokiraj: "Blokiraj",
+      dugmeDeblokiraj: "Deblokiraj",
       nazad: "← Nazad na Dashboard",
-      korisniciNaslov: "Korisnici",
-      eventiNaslov: "Svi Događaji",
-      obrisi: "Obriši",
-      statSlika: "Ukupno slika",
-      statEventi: "Aktivni eventi",
-      statKorisnici: "Novi korisnici"
+      ucitavanje: "Učitavanje admin podataka..."
     },
     EN: {
+      naslov: "Admin Panel",
+      podnaslov: "Overview and system-wide management.",
+      statKorisnici: "Total Users",
+      statDogadji: "Total Events",
+      statFotografije: "Total Photos",
+      tabelaKorisnici: "User Management",
+      kolonaIme: "Name",
+      kolonaEmail: "Email",
+      kolonaUloga: "Role",
+      kolonaAkcija: "Action",
+      dugmeBlokiraj: "Block",
+      dugmeDeblokiraj: "Unblock",
       nazad: "← Back to Dashboard",
-      korisniciNaslov: "Users",
-      eventiNaslov: "All Events",
-      obrisi: "Delete",
-      statSlika: "Total photos",
-      statEventi: "Active events",
-      statKorisnici: "New users"
+      ucitavanje: "Loading admin data..."
     }
   };
 
   const t = jezik === 'BS' ? prevodi.BS : prevodi.EN;
 
-  const sviKorisnici = [
-    { id: 1, ime: "Amra Fazlić", email: "amra@mail.com", uloga: "Organizator" },
-    { id: 2, ime: "Tarik H.", email: "tarik@mail.com", uloga: "Gost" },
-  ];
-
-  const sviEventi = [
-    { id: 1, naziv: "Svadba Amra & Dino", kod: "SARA2026", autor: "Amra Fazlić" },
-    { id: 2, naziv: "Maturantska zabava", kod: "MAT2026", autor: "Tarik H." },
-  ];
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans animate-pulse">
+        {t.ucitavanje}
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white p-8 font-sans">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-12">
-          <h1 className="text-4xl font-black tracking-tighter uppercase">Admin <span className="text-[#e60023]">Panel</span></h1>
-          <div className="flex items-center gap-4">
-            <button 
-              type="button"
-              onClick={() => promijeniJezik(jezik === 'BS' ? 'EN' : 'BS')}
-              className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-xs font-semibold tracking-wider text-gray-300 hover:text-white transition-all"
-            >
-              {jezik === 'BS' ? '🇬🇧 EN' : '🇧🇦 BS'}
-            </button>
-            <Link href="/dashboard" className="text-xs text-gray-500 hover:text-white transition-colors border border-white/10 px-4 py-2 rounded-full">
-              {t.nazad}
-            </Link>
-          </div>
+    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans py-12 px-8 relative flex flex-col items-center overflow-x-hidden">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[400px] bg-[#e60023]/10 blur-[130px] pointer-events-none"></div>
+
+      <div className="relative z-10 w-full max-w-5xl">
+        {/* Vrh stranice */}
+        <div className="mb-12 text-left">
+          <h1 className="text-4xl font-extrabold tracking-tight mb-2 bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400">
+            {t.naslov}
+          </h1>
+          <p className="text-gray-400 font-light text-sm">{t.podnaslov}</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-xl">
-            <h2 className="text-xl font-bold mb-6 flex items-center"><span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span> {t.korisniciNaslov}</h2>
-            <div className="space-y-4">
-              {sviKorisnici.map(user => (
-                <div key={user.id} className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5">
-                  <div>
-                    <p className="font-medium">{user.ime}</p>
-                    <p className="text-xs text-gray-500">{user.email}</p>
-                  </div>
-                  <button className="text-[10px] uppercase tracking-widest text-red-500 hover:text-red-400">{t.obrisi}</button>
-                </div>
-              ))}
+        {greska ? (
+          <div className="p-4 bg-red-500/20 border border-red-500/40 rounded-2xl text-red-400 text-sm mb-6">
+            {greska}
+          </div>
+        ) : (
+          <>
+            {/* Statističke kartice */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+              <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md">
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">{t.statKorisnici}</p>
+                <p className="text-4xl font-mono font-bold text-white">{stats?.broj_korisnika || 0}</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md">
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">{t.statDogadji}</p>
+                <p className="text-4xl font-mono font-bold text-[#e60023]">{stats?.broj_eventa || 0}</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md">
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">{t.statFotografije}</p>
+                <p className="text-4xl font-mono font-bold text-white">{stats?.broj_fotografija || 0}</p>
+              </div>
             </div>
-          </div>
 
-          <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-xl">
-            <h2 className="text-xl font-bold mb-6 flex items-center"><span className="w-2 h-2 bg-[#e60023] rounded-full mr-2"></span> {t.eventiNaslov}</h2>
-            <div className="space-y-4">
-              {sviEventi.map(event => (
-                <div key={event.id} className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5">
-                  <div>
-                    <p className="font-medium">{event.naziv}</p>
-                    <p className="text-xs text-gray-500">Kod: {event.kod} | Autor: {event.autor}</p>
-                  </div>
-                  <button className="text-[10px] uppercase tracking-widest text-red-500 hover:text-red-400">{t.obrisi}</button>
-                </div>
-              ))}
+            {/* Tabela korisnika */}
+            <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-xl">
+              <h2 className="text-xl font-bold mb-6 tracking-tight">{t.tabelaKorisnici}</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/10 text-gray-400 text-sm font-medium">
+                      <th className="pb-4 font-normal">{t.kolonaIme}</th>
+                      <th className="pb-4 font-normal">{t.kolonaEmail}</th>
+                      <th className="pb-4 font-normal">{t.kolonaUloga}</th>
+                      <th className="pb-4 text-right font-normal">{t.kolonaAkcija}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-sm font-light">
+                    {korisnici.map((user) => (
+                      <tr key={user.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="py-4 font-medium text-white flex items-center gap-2">
+                          {user.ime}
+                          {user.blokiran && (
+                            <span className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded-full font-sans">
+                              BLOKIRAN
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-4 text-gray-400">{user.email}</td>
+                        <td className="py-4 text-gray-400 font-mono text-xs">{user.uloga}</td>
+                        <td className="py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleBlockToggle(user.id, user.blokiran)}
+                            className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                              user.blokiran
+                                ? 'bg-green-600 text-white hover:bg-green-700'
+                                : 'bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600 hover:text-white'
+                            }`}
+                          >
+                            {user.blokiran ? t.dugmeDeblokiraj : t.dugmeBlokiraj}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
 
-        <div className="mt-8 grid grid-cols-3 gap-4">
-          <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] text-center">
-            <p className="text-gray-500 text-xs uppercase mb-1">{t.statSlika}</p>
-            <p className="text-2xl font-bold">1,204</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] text-center">
-            <p className="text-gray-500 text-xs uppercase mb-1">{t.statEventi}</p>
-            <p className="text-2xl font-bold">42</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] text-center">
-            <p className="text-gray-500 text-xs uppercase mb-1">{t.statKorisnici}</p>
-            <p className="text-2xl font-bold">{jezik === 'BS' ? '+12 danas' : '+12 today'}</p>
-          </div>
+        <div className="mt-12 text-center">
+          <Link href="/dashboard" className="text-xs text-gray-500 hover:text-white transition-colors">
+            {t.nazad}
+          </Link>
         </div>
       </div>
     </div>

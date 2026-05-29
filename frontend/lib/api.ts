@@ -287,3 +287,85 @@ export async function getFeed(): Promise<ApiFotografija[]> {
   const res = await fetch(`${BASE_URL}/feed`, { headers: authHeaders() });
   return handleResponse(res);
 }
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+
+export async function register(ime: string, email: string, lozinka: string, uloga: 'ORGANIZATOR' | 'GOST', jezik: string): Promise<ApiKorisnik> {
+  const res = await fetch(`${BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ime, email, lozinka, uloga, jezik }),
+  });
+  return handleResponse(res);
+}
+
+export async function lgin(email: string, lozinka: string): Promise<{ access_token: string }> {
+  const res = await fetch(`${BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, lozinka }),
+  });
+  return handleResponse(res);
+}
+
+export function logout(): void {
+  
+  localStorage.removeItem('token');
+}
+
+export async function getMojiEventi(): Promise<ApiEvent[]> {
+  const res = await fetch(`${BASE_URL}/events`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function kreirajEvent(naziv: string, datum: string, lokacija: string, opis: string): Promise<ApiEvent> {
+  const res = await fetch(`${BASE_URL}/events`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ naziv, datum, lokacija, opis }),
+  });
+  return handleResponse(res);
+}
+
+export async function pridruziSeEventu(kod: string): Promise<ApiEvent> {
+  const res = await fetch(`${BASE_URL}/events/join`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ kod }), // Šaljemo kod u JSON formatu
+  });
+  return handleResponse(res);
+}
+
+// ─── ADMIN PANELI VRAĆAJU OVE TIPOVE ──────────────────────────────────────────
+
+export interface ApiAdminStats {
+  broj_korisnika: number;
+  broj_eventa: number;
+  broj_fotografija: number;
+  broj_komentara: number;
+  broj_lajkova: number;
+  broj_albuma: number;
+}
+
+// ─── ADMIN FUNKCIJE ───────────────────────────────────────────────────────────
+
+/** Dohvata globalnu statistiku sistema za admin panel */
+export async function getAdminStats(): Promise<ApiAdminStats> {
+  const res = await fetch(`${BASE_URL}/admin/stats`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+
+export async function getAdminUsers(): Promise<ApiKorisnik[]> {
+  const res = await fetch(`${BASE_URL}/admin/users`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function toggleBlokirajKorisnika(korisnikId: number, blokiran: boolean): Promise<ApiKorisnik> {
+  const res = await fetch(`${BASE_URL}/admin/users/${korisnikId}/block`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ blokiran }),
+  });
+  return handleResponse(res);
+}

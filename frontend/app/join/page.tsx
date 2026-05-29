@@ -1,9 +1,17 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { pridruziSeEventu } from '../../lib/api'; // Provjeri putanju prema svom lib folderu
 
 export default function JoinPage() {
+  const router = useRouter();
   const [jezik, setJezik] = useState('BS');
+  
+  // Stanja za formu
+  const [kod, setKod] = useState('');
+  const [greska, setGreska] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
@@ -26,12 +34,38 @@ export default function JoinPage() {
     window.dispatchEvent(new Event('storage'));
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGreska('');
+    
+    if (!kod.trim()) {
+      setGreska(jezik === 'BS' ? 'Molimo unesite kod događaja.' : 'Please enter an event code.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Šaljemo kod na backend (Tamir ga u kodu prebaci u uppercase, pa je svejedno šta uneseš)
+      const event = await pridruziSeEventu(kod.trim());
+      
+      // Ako kod valja, backend nas učlani u event i mi idemo direktno u njegovu galeriju!
+      router.push(`/events/${event.id}`);
+    } catch (err: any) {
+      // Ovdje hvatamo Tamirov "Event sa ovim kodom ne postoji." ili "Event nije aktivan."
+      setGreska(err.message || (jezik === 'BS' ? 'Greška pri pridruživanju.' : 'Error joining event.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const prevodi = {
     BS: {
       naslov: "Pridružite se",
       podnaslov: "Unesite jedinstveni kod događaja.",
       placeholderKod: "Unesite kod",
       dugme: "Pristupi galeriji",
+      ucitavanje: "Provjera...",
       nazad: "← Nazad"
     },
     EN: {
@@ -39,6 +73,7 @@ export default function JoinPage() {
       podnaslov: "Enter the unique event code.",
       placeholderKod: "Enter code",
       dugme: "Access Gallery",
+      ucitavanje: "Checking...",
       nazad: "← Back"
     }
   };
@@ -67,9 +102,27 @@ export default function JoinPage() {
         <h1 className="text-xl font-medium mb-2 tracking-tight text-white">{t.naslov}</h1>
         <p className="text-xs text-gray-400 mb-8 font-light">{t.podnaslov}</p>
 
-        <form className="space-y-4">
-          <input type="text" placeholder={t.placeholderKod} className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-white text-center text-lg tracking-[0.2em] transition-all text-white lowercase placeholder:tracking-normal placeholder:text-sm placeholder:text-gray-600" />
-          <button className="w-full bg-[#e60023] text-white py-4 rounded-2xl text-sm font-bold hover:scale-[1.02] transition-transform mt-4 shadow-[0_0_20px_rgba(230,0,35,0.3)]">{t.dugme}</button>
+        {greska && (
+          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-xs text-red-400 text-center">
+            {greska}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input 
+            type="text" 
+            placeholder={t.placeholderKod}
+            value={kod}
+            onChange={(e) => setKod(e.target.value)}
+            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-white text-center text-lg tracking-[0.2em] transition-all text-white uppercase placeholder:tracking-normal placeholder:text-sm placeholder:text-gray-600" 
+          />
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#e60023] text-white py-4 rounded-2xl text-sm font-bold hover:scale-[1.02] active:scale-[0.98] transition-transform mt-4 shadow-[0_0_20px_rgba(230,0,35,0.3)] disabled:bg-gray-700"
+          >
+            {loading ? t.ucitavanje : t.dugme}
+          </button>
         </form>
 
         <div className="mt-8 pt-6 border-t border-white/10">

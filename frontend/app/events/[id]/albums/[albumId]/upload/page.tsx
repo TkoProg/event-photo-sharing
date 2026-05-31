@@ -146,25 +146,13 @@ export default function UploadPhotoPage() {
               onClick={handleSubmit}
               disabled={previews.length === 0 || isUploading || done}
               className={`flex-1 px-6 py-4 rounded-full font-bold transition-all ${
-                done
-                  ? 'bg-green-500 text-white'
-                  : previews.length === 0
+                done ? 'bg-green-500 text-white'
+                  : previews.length === 0 || isUploading
                   ? 'bg-white/10 text-gray-500 cursor-not-allowed'
-                  : isUploading
-                  ? 'bg-gray-700 text-white cursor-not-allowed'
                   : 'bg-white text-black hover:bg-gray-200 active:scale-[0.98]'
               }`}
             >
-              {done ? (
-                t.uspjeh
-              ) : isUploading ? (
-                <span className="flex items-center justify-center gap-3">
-                  <span className="inline-block animate-spin text-xl">⏳</span>
-                  {t.uploading}
-                </span>
-              ) : (
-                t.objavi
-              )}
+              {done ? t.uspjeh : isUploading ? t.uploading : t.objavi}
             </button>
           </div>
         </div>

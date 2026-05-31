@@ -42,6 +42,13 @@ export interface ApiFotografija {
   liked_by_me: boolean;
 }
 
+export async function getUcesnici(eventId: number): Promise<ApiKorisnik[]> {
+  const res = await fetch(`${BASE_URL}/events/${eventId}/participants`, { 
+    headers: authHeaders() 
+  });
+  return handleResponse(res);
+}
+
 export interface ApiKomentar {
   id: number;
   fotografija_id: number;
@@ -64,6 +71,14 @@ export interface ApiAlbum {
 
 export interface ApiAlbumDetalji extends ApiAlbum {
   fotografije: ApiFotografija[];
+}
+
+export async function deleteAlbum(albumId: number): Promise<void> {
+  const res = await fetch(`${BASE_URL}/albums/${albumId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error('Greška pri brisanju albuma');
 }
 
 // ─── Helper: Authorization header ────────────────────────────────────────────

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  getEvent, updateEvent, deleteEvent,
+  getEvent, updateEvent, deleteEvent, deleteAlbum,
   getFotografije, deleteFotografija, toggleFavorit,
   getAlbumi, dodajFotografijaUAlbum, getTrenutniKorisnik,
   ApiEvent, ApiFotografija, ApiAlbum, getUcesnici, ApiKorisnik
@@ -30,7 +30,7 @@ const PREVODI = {
     odustani: 'Odustani', mojiAlbumi: 'Moji albumi', kreirajAlbum: '+ Kreiraj album',
     favoriti: '⭐ Favoriti', fotografija: 'fotografija', albumPrazan: 'Nemaš još albuma.',
     ucesniciNaslov: 'Učesnici događaja', prijavljeni: 'Prijavljeni',
-    simuliraj: '+ Simuliraj login učesnika', josNiko: 'Još niko se nije prijavio.', online: 'Online',
+    simuliraj: '+ Simuliraj login učesnika', josNiko: 'Još niko se nije prijavio.',
     osnovneInfo: 'Osnovne informacije', osnovneInfoOpis: 'Ažurirajte ključne detalje.',
     nazivDogadjaja: 'Naziv događaja', datum: 'Datum', lokacija: 'Lokacija', opis: 'Opis',
     privatnost: 'Privatnost', privatnostOpis: 'Upravljajte pristupom.',
@@ -44,6 +44,7 @@ const PREVODI = {
     izbrisi: 'Sačuvaj', modalOdustani: 'Odustani',
     promjeneSacuvane: 'Promjene sačuvane! ✅', greska: 'Greška. Pokušaj ponovo.',
     lajkova: 'lajkova', uFavoritima: '⭐ Favorit', dodajUFavorite: '☆ Dodaj u favorite',
+    aktivan: 'Aktivan', blokiran: 'Blokiran'
   },
   EN: {
     nazad: '← My events', dobrodosli: 'Welcome to the event dashboard.',
@@ -53,7 +54,7 @@ const PREVODI = {
     odustani: 'Cancel', mojiAlbumi: 'My albums', kreirajAlbum: '+ Create album',
     favoriti: '⭐ Favorites', fotografija: 'photos', albumPrazan: "No albums yet.",
     ucesniciNaslov: 'Event participants', prijavljeni: 'Registered',
-    simuliraj: '+ Simulate login', josNiko: 'Nobody joined yet.', online: 'Online',
+    simuliraj: '+ Simulate login', josNiko: 'Nobody joined yet.',
     osnovneInfo: 'Basic information', osnovneInfoOpis: 'Update key details.',
     nazivDogadjaja: 'Event name', datum: 'Date', lokacija: 'Location', opis: 'Description',
     privatnost: 'Privacy', privatnostOpis: 'Manage access.',
@@ -67,6 +68,7 @@ const PREVODI = {
     izbrisi: 'Save', modalOdustani: 'Cancel',
     promjeneSacuvane: 'Changes saved! ✅', greska: 'Error. Please try again.',
     lajkova: 'likes', uFavoritima: '⭐ Favorite', dodajUFavorite: '☆ Add to favorites',
+    aktivan: 'Active', blokiran: 'Blocked'
   }
 };
 type T = typeof PREVODI.BS;
@@ -147,9 +149,10 @@ function FormField({ label, icon, ...props }: React.InputHTMLAttributes<HTMLInpu
 }
 
 // ─── Tab: Photos ──────────────────────────────────────────────────────────────
-function PhotosTab({ eventId, t, jeOrganizator }: { eventId: string; t: T; jeOrganizator: boolean }) {
+function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boolean; }) {
   const [photos, setPhotos] = useState<ApiFotografija[]>([]);
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
+  const [ucesnici, setUcesnici] = useState<ApiKorisnik[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
@@ -160,7 +163,12 @@ function PhotosTab({ eventId, t, jeOrganizator }: { eventId: string; t: T; jeOrg
     Promise.all([
       getFotografije(Number(eventId)),
       getAlbumi(Number(eventId)),
-    ]).then(([f, a]) => { setPhotos(f); setAlbums(a); })
+      getUcesnici(Number(eventId)),
+    ]).then(([f, a, u]) => { 
+        setPhotos(f); 
+        setAlbums(a); 
+        setUcesnici(u);
+    })
       .catch(() => showToast(t.greska))
       .finally(() => setLoading(false));
   }, [eventId]);
@@ -190,9 +198,24 @@ function PhotosTab({ eventId, t, jeOrganizator }: { eventId: string; t: T; jeOrg
     } catch { showToast(t.greska); }
   };
 
-  const filtered = photos.filter(f =>
-    !searchTerm.trim() || String(f.id).includes(searchTerm)
-  );
+  const filtered = photos.filter(foto => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+
+    // 1. Da li se pretraga poklapa sa ID-jem slike?
+    if (String(foto.id).includes(term)) return true;
+
+    // 2. Da li se pretraga poklapa sa nekim od tagovanih ljudi?
+    if (foto.tagovi && foto.tagovi.length > 0) {
+      const imaPoklapanje = foto.tagovi.some(tag => {
+        const ucesnik = ucesnici.find(u => u.id === tag.oznaceni_korisnik_id);
+        return ucesnik && ucesnik.ime.toLowerCase().includes(term);
+      });
+      if (imaPoklapanje) return true;
+    }
+
+    return false;
+  });
 
   if (loading) return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
@@ -233,28 +256,39 @@ function PhotosTab({ eventId, t, jeOrganizator }: { eventId: string; t: T; jeOrg
                   <img src={foto.url} className="w-full h-full object-cover" alt="Slika" />
                 </div>
               </Link>
+
               <div className="flex gap-2 mt-3">
-                {jeOrganizator && (
-                  <button 
-                    onClick={() => setSelectedPhotoId(foto.id === selectedPhotoId ? null : foto.id)}
+                {/* Dodaj u album — samo organizator/admin */}
+                {mozeSve && (
+                  <button onClick={() => setSelectedPhotoId(foto.id === selectedPhotoId ? null : foto.id)}
                     className="flex-1 bg-white/10 hover:bg-white/20 py-2 rounded-lg text-sm font-semibold transition-all">
                     {t.dodajUAlbum}
                   </button>
                 )}
-                {jeOrganizator && (
-                  <button 
-                    onClick={() => handleFavorit(foto)}
+                {/* Favorit — samo organizator/admin */}
+                {mozeSve && (
+                  <button onClick={() => handleFavorit(foto)}
                     className={`px-3 py-2 rounded-lg text-sm transition-all ${foto.favorit ? 'bg-yellow-500/20 text-yellow-400' : 'bg-white/10 hover:bg-white/20 text-gray-400'}`}>
                     ⭐
                   </button>
                 )}
-                <button 
-                  onClick={() => handleDownload(foto.url, `slika-${foto.id}.jpg`)}
+                {/* Download — svi */}
+                <button onClick={() => handleDownload(foto.url, `slika-${foto.id}.jpg`)}
                   className="px-3 bg-black border border-white/10 hover:bg-gray-800 py-2 rounded-lg text-white">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                   </svg>
                 </button>
+                {/* DESNA STRANA: Indikator tagova */}
+                {foto.tagovi && foto.tagovi.length > 0 && (
+                  <span className="text-white/30 text-[11px] font-medium flex items-center gap-1.5 transition-colors hover:text-white/60 cursor-help" title={`Označeno osoba: ${foto.tagovi.length}`}>
+                    {foto.tagovi.length}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                  </span>
+                )}
               </div>
               {selectedPhotoId === foto.id && (
                 <div ref={menuRef} className="absolute top-16 left-0 right-0 bg-[#1a1a1a] border border-white/10 p-4 rounded-2xl z-20 shadow-2xl">
@@ -286,7 +320,7 @@ function PhotosTab({ eventId, t, jeOrganizator }: { eventId: string; t: T; jeOrg
 }
 
 // ─── Tab: Albums ──────────────────────────────────────────────────────────────
-function AlbumsTab({ eventId, t, jeOrganizator }: { eventId: string; t: T; jeOrganizator: boolean }) {
+function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: T; mozeSve: boolean;jeAdmin: boolean; }) {
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const { message: toastMsg, show: showToast } = useToast();
@@ -321,7 +355,7 @@ function AlbumsTab({ eventId, t, jeOrganizator }: { eventId: string; t: T; jeOrg
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-bold">{t.mojiAlbumi}</h2>
-        {jeOrganizator && (
+        {mozeSve && (
           <Link href={`/events/${eventId}/albums/create`} className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all active:scale-95">
             {t.kreirajAlbum}
           </Link>
@@ -338,6 +372,18 @@ function AlbumsTab({ eventId, t, jeOrganizator }: { eventId: string; t: T; jeOrg
                 <h3 className="text-xl font-bold hover:underline">{album.naziv}</h3>
                 <p className="text-xs text-gray-500 mt-2">{album.broj_fotografija} {t.fotografija}</p>
               </Link>
+              {/* X dugme — samo admin */}
+              {jeAdmin && album.id !== 'favorites' && (
+                <button onClick={async () => {
+                  try {
+                    await deleteAlbum(Number(album.id));
+                    setAlbums(prev => prev.filter(a => a.id !== album.id));
+                  } catch { showToast(t.greska); }
+                }}
+                className="absolute top-4 right-4 text-red-500 hover:text-red-400">
+                  ✕
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -383,12 +429,18 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
               </div>
               <div>
                 <p className="font-semibold">
-                  {p.uloga === 'GOST' ? `Gost` : p.ime}
+                  {p.uloga === 'GOST' ? 'Gost' : p.ime}
                 </p>
                 <p className="text-xs text-gray-400">{p.email}</p>
-                <p className={`text-xs ${p.blokiran ? 'text-red-400' : 'text-green-400'}`}>
-                  {p.blokiran ? 'Blokiran' : t.online}
-                </p>
+              </div>
+              <div className="ml-auto">
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                  p.uloga === 'ADMIN' ? 'bg-red-500/20 text-red-400' :
+                  p.uloga === 'ORGANIZATOR' ? 'bg-blue-500/20 text-blue-400' :
+                  'bg-gray-500/20 text-gray-400'
+                }`}>
+                  {p.uloga}
+                </span>
               </div>
             </div>
           ))
@@ -517,8 +569,11 @@ export default function EventDashboard() {
   const [eventName, setEventName] = useState('...');
   const [eventLoading, setEventLoading] = useState(true);
   const [jezik, setJezik] = useState('BS');
-  const uloga = useKorisnik(); // vraća string | null
-  const jeOrganizator = uloga === 'ORGANIZATOR' || uloga === 'ADMIN';
+  const uloga = useKorisnik();
+  const jeGost = uloga === 'GOST';
+  const jeOrganizator = uloga === 'ORGANIZATOR';
+  const jeAdmin = uloga === 'ADMIN';
+  const mozeSve = jeOrganizator || jeAdmin;
 
   useEffect(() => {
     const sacuvani = localStorage.getItem('izabraniJezik');
@@ -542,9 +597,9 @@ export default function EventDashboard() {
   const t = jezik === 'BS' ? PREVODI.BS : PREVODI.EN;
   const tabs = TABS_RAW
     .filter(tab => {
-      if (!jeOrganizator && tab.id === 'settings') return false;
-      if (!jeOrganizator && tab.id === 'participants') return false;
-      if (!jeOrganizator && tab.id === 'albums') return false;
+      if (!mozeSve && tab.id === 'settings') return false;
+      if (!mozeSve && tab.id === 'participants') return false;
+      if (!mozeSve && tab.id === 'albums') return false;
       return true;
     })
     .map(tab => ({ id: tab.id, name: jezik === 'BS' ? tab.bs : tab.en }));
@@ -574,10 +629,10 @@ export default function EventDashboard() {
         </nav>
 
         <div className="mt-6 min-h-[400px] w-full">
-          {activeTab === 'photos' && <PhotosTab eventId={id} t={t} jeOrganizator={jeOrganizator ?? false} />}
-          {activeTab === 'albums' && jeOrganizator && <AlbumsTab eventId={id} t={t} jeOrganizator={jeOrganizator} />}
-          {activeTab === 'participants' && <ParticipantsTab eventId={id} t={t} />}
-          {activeTab === 'settings' && <SettingsTab eventId={id} t={t} />}
+          {activeTab === 'photos' && <PhotosTab eventId={id} t={t} mozeSve={mozeSve} />}
+          {activeTab === 'albums' && mozeSve && <AlbumsTab eventId={id} t={t} mozeSve={mozeSve} jeAdmin={jeAdmin} />}
+          {activeTab === 'participants' && mozeSve && <ParticipantsTab eventId={id} t={t} />}
+          {activeTab === 'settings' && mozeSve && <SettingsTab eventId={id} t={t} />}
         </div>
       </div>
     </div>

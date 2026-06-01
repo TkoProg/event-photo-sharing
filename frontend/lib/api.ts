@@ -14,7 +14,7 @@ export interface ApiKorisnik {
   email: string;
   uloga: 'ADMIN' | 'ORGANIZATOR' | 'GOST';
   jezik: string;
-  blokiran: boolean;
+  aktivan: boolean; // <-- PROMJENA OVDJE
 }
 
 export interface ApiEvent {
@@ -34,12 +34,13 @@ export interface ApiFotografija {
   id: number;
   event_id: number;
   korisnik_id: number;
-  url: string;                 // javni URL slike, npr. http://127.0.0.1:8000/uploads/slika.jpg
+  url: string; 
   vrijeme_uploada: string;
   broj_lajkova: number;
   broj_komentara: number;
   favorit: boolean;
   liked_by_me: boolean;
+  tagovi?: any[];
 }
 
 export async function getUcesnici(eventId: number): Promise<ApiKorisnik[]> {
@@ -233,6 +234,26 @@ export async function deleteKomentar(komentarId: number): Promise<void> {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error('Greška pri brisanju komentara');
+}
+
+export async function dodajTag(photoId: number, oznaceniKorisnikId: number) {
+  const res = await fetch(`${BASE_URL}/photos/${photoId}/tags`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders()
+    },
+    body: JSON.stringify({ oznaceni_korisnik_id: oznaceniKorisnikId }) 
+  });
+  return handleResponse(res);
+}
+
+export async function deleteTag(tagId: number) {
+  const res = await fetch(`${BASE_URL}/tags/${tagId}`, {
+    method: 'DELETE',
+    headers: authHeaders()
+  });
+  return handleResponse(res);
 }
 
 // ─── ALBUMI ───────────────────────────────────────────────────────────────────

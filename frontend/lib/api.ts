@@ -65,7 +65,7 @@ export interface ApiAlbum {
   naziv: string;
   opis: string;
   tip: 'OBICNI' | 'FINALNI';
-  share_code: string | null;
+  share_code: string;
   javno: boolean;
   broj_fotografija: number;
 }
@@ -303,7 +303,11 @@ export async function ukloniFotografijaIzAlbuma(albumId: number, photoId: number
 export async function objaviAlbum(albumId: number): Promise<ApiAlbum> {
   const res = await fetch(`${BASE_URL}/albums/${albumId}/publish`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: {
+      ...authHeaders(), // Tvoji postojeći headeri (token)
+      'Content-Type': 'application/json', // OVO JE KLJUČNO
+    },
+    body: JSON.stringify({}), // OVO JE KLJUČNO
   });
   return handleResponse(res);
 }

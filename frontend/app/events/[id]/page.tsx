@@ -4,7 +4,7 @@ import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigat
 import Link from 'next/link';
 import {
   getEvent, updateEvent, deleteEvent, deleteAlbum,
-  getFotografije, deleteFotografija, toggleFavorit,
+  getFotografije, toggleFavorit, objaviAlbum,
   getAlbumi, dodajFotografijaUAlbum, getTrenutniKorisnik,
   ApiEvent, ApiFotografija, ApiAlbum, getUcesnici, ApiKorisnik
 } from '@/lib/api';
@@ -324,6 +324,8 @@ function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: T; mo
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const { message: toastMsg, show: showToast } = useToast();
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [kopiranId, setKopiranId] = useState<number | string | null>(null);
 
   useEffect(() => {
     getAlbumi(Number(eventId))
@@ -368,26 +370,56 @@ function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: T; mo
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {allAlbums.map(album => (
             <div key={album.id} className="bg-white/5 p-6 rounded-3xl relative flex flex-col justify-between min-h-[130px] border border-white/5 hover:border-white/10 transition-all">
+              {/* Klik uvijek vodi na internu stranicu albuma */}
               <Link href={`/events/${eventId}/albums/${album.id}`}>
                 <h3 className="text-xl font-bold hover:underline">{album.naziv}</h3>
                 <p className="text-xs text-gray-500 mt-2">{album.broj_fotografija} {t.fotografija}</p>
               </Link>
-              {/* X dugme — samo admin */}
+
+              {/* Brisanje — samo admin (Ovo možemo ostaviti) */}
               {jeAdmin && album.id !== 'favorites' && (
-                <button onClick={async () => {
-                  try {
-                    await deleteAlbum(Number(album.id));
-                    setAlbums(prev => prev.filter(a => a.id !== album.id));
-                  } catch { showToast(t.greska); }
-                }}
-                className="absolute top-4 right-4 text-red-500 hover:text-red-400">
+                <button
+                  onClick={async () => {
+                    try {
+                      await deleteAlbum(Number(album.id));
+                      setAlbums(prev => prev.filter(a => a.id !== album.id));
+                    } catch { showToast(t.greska); }
+                  }}
+                  className="absolute top-4 right-4 text-red-500 hover:text-red-400 transition-colors"
+                >
                   ✕
                 </button>
               )}
             </div>
-          ))}
+        ))}
         </div>
       )}
+      {/* Share link modal */}
+{shareLink && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full">
+      <h3 className="text-xl font-bold mb-2">🔗 Share link</h3>
+      <p className="text-gray-400 text-sm mb-4">Pošalji ovaj link da drugi mogu vidjeti album:</p>
+      <div className="bg-black p-3 rounded-xl border border-white/10 text-xs text-green-400 break-all mb-6">
+        {shareLink}
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={() => { navigator.clipboard.writeText(shareLink); showToast('Link kopiran! 📋'); }}
+          className="flex-1 bg-white text-black py-3 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm"
+        >
+          Kopiraj
+        </button>
+        <button
+          onClick={() => setShareLink(null)}
+          className="flex-1 bg-white/5 py-3 rounded-xl hover:bg-white/10 transition-all text-sm"
+        >
+          Zatvori
+        </button>
+      </div>
+    </div>
+  </div>
+)}
       <Toast message={toastMsg} />
     </div>
   );

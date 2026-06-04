@@ -1,7 +1,8 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { getJavniAlbum, ApiAlbumDetalji, ApiFotografija } from '@/lib/api';
+import Link from 'next/link';
 
 const PREVODI = {
   BS: {
@@ -28,7 +29,9 @@ const PREVODI = {
 
 export default function ShareAlbumPage() {
   const params = useParams();
-  const shareCode = params?.shareCode as string;
+  const searchParams = useSearchParams();
+  const shareCode = params?.sharecode as string;
+  const eventId = searchParams.get('eventId');
 
   const [album, setAlbum] = useState<ApiAlbumDetalji | null>(null);
   const [loading, setLoading] = useState(true);
@@ -136,9 +139,20 @@ export default function ShareAlbumPage() {
       {/* Header */}
       <header className="border-b border-white/10 px-6 md:px-12 py-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="text-xl font-bold tracking-tighter">
-            Event<span className="text-[#e60023]">Photo</span>
+          
+          {/* LIJEVA STRANA: Logo ILI dugme za nazad (ako je došao s dashboarda) */}
+          <div className="flex items-center gap-4">
+            {eventId && (
+              <Link href={`/events/${eventId}?tab=albums`} className="text-gray-400 hover:text-white font-semibold flex items-center gap-2 pr-4 border-r border-white/10 transition-colors">
+                ← Nazad
+              </Link>
+            )}
+            <div className="text-xl font-bold tracking-tighter hidden sm:block">
+              Event<span className="text-[#e60023]">Photo</span>
+            </div>
           </div>
+
+          {/* DESNA STRANA: Dugme za kopiranje */}
           <button onClick={handleCopyLink}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${copied ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300'}`}>
             {copied ? t.linkKopiran : (

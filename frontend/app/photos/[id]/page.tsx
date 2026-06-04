@@ -9,9 +9,11 @@ import {
   unlikeFotografija,
   getKomentari,
   dodajKomentar,
-  getFotografije, // ← Dodano za povlačenje niza slika radi navigacije strelicama
+  getFotografije,
   ApiFotografija,
-  ApiKomentar, getTrenutniKorisnik
+  ApiKomentar, getTrenutniKorisnik,
+  deleteKomentar, ApiKorisnik, getUcesnici,
+  dodajTag, deleteTag
 } from '@/lib/api';
 
 const PREVODI = {
@@ -84,11 +86,22 @@ export default function PhotoDetail() {
       .catch(() => setUloga('GOST'));
   }, []);
 
-  const jeOrganizator = uloga === 'ORGANIZATOR' || uloga === 'ADMIN';
+  const jeGost = uloga === 'GOST';
+  const jeOrganizator = uloga === 'ORGANIZATOR';
+  const jeAdmin = uloga === 'ADMIN';
+  const mozeSve = jeOrganizator || jeAdmin;
 
   useEffect(() => {
     getTrenutniKorisnik()
       .then(k => setUloga(k.uloga))
+      .catch(() => setUloga('GOST'));
+  }, []);
+
+  const [korisnikId, setKorisnikId] = useState<number | null>(null);
+
+  useEffect(() => {
+    getTrenutniKorisnik()
+      .then(k => { setUloga(k.uloga); setKorisnikId(k.id); })
       .catch(() => setUloga('GOST'));
   }, []);
 
@@ -99,8 +112,12 @@ export default function PhotoDetail() {
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   // ─── TAGOVI LOGIKA (Lokalni fallback jer ApiFotografija nema tagove) ──────────
-  const [localTags, setLocalTags] = useState<string[]>([]);
-  const [newTag, setNewTag] = useState('');
+  const [ucesnici, setUcesnici] = useState<ApiKorisnik[]>([]);
+  const [odabraniKorisnikId, setOdabraniKorisnikId] = useState<number | ''>('');
+  const [trazeniPojam, setTrazeniPojam] = useState('');
+  const [fokusiraniIndex, setFokusiraniIndex] = useState(-1);
+  const [prikaziPrijedloge, setPrikaziPrijedloge] = useState(false);
+  const [tagovi, setTagovi] = useState<any[]>([]); // Ovdje čuvamo tagove sa backenda
 
   // Jezik provjera
   useEffect(() => {
@@ -126,12 +143,8 @@ export default function PhotoDetail() {
       .then(([foto, kom]) => {
         setPhoto(foto);
         setKomentari(kom);
-        
-        // Učitavanje lokalnih tagova za ovu sliku iz localStorage-a
-        const savedTags = localStorage.getItem(`photo_tags_${foto.id}`);
-        setLocalTags(savedTags ? JSON.parse(savedTags) : ['vjenčanje', 'proslava']); // Neki defaultni tagovi
-
-        // Povlačimo sve slike tog događaja sa backenda kako bismo znali šta je lijevo/desno
+        getUcesnici(foto.event_id).then(setUcesnici).catch(console.error);
+        setTagovi(foto.tagovi || []);
         return getFotografije(foto.event_id);
       })
       .then((sveSlike) => {
@@ -224,24 +237,57 @@ export default function PhotoDetail() {
     finally { setSubmittingComment(false); }
   };
 
-  // Upravljanje tagovima (Lokalno spašavanje)
-  const handleAddTag = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTag.trim() || !photo) return;
-    const tag = newTag.trim().toLowerCase();
-    if (!localTags.includes(tag)) {
-      const updatedTags = [...localTags, tag];
-      setLocalTags(updatedTags);
-      localStorage.setItem(`photo_tags_${photo.id}`, JSON.stringify(updatedTags));
-    }
-    setNewTag('');
+  const handleDeleteKomentar = async (komentarId: number) => {
+    try {
+      await deleteKomentar(komentarId);
+      setKomentari(prev => prev.filter(k => k.id !== komentarId));
+    } catch { setError(t.greska); }
   };
 
-  const handleRemoveTag = (tagToRemove: string) => {
-    if (!photo) return;
-    const updatedTags = localTags.filter(tag => tag !== tagToRemove);
-    setLocalTags(updatedTags);
-    localStorage.setItem(`photo_tags_${photo.id}`, JSON.stringify(updatedTags));
+  // Upravljanje tagovima (Lokalno spašavanje)
+const handleAddTag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!odabraniKorisnikId || !photo) return;
+
+    const vecTagovan = tagovi.some(tag => tag.oznaceni_korisnik_id === Number(odabraniKorisnikId));
+    if (vecTagovan) {
+      setTrazeniPojam('');
+      setOdabraniKorisnikId('');
+      return; 
+    }
+
+    try {
+      const noviTag = await dodajTag(photo.id, Number(odabraniKorisnikId));
+      setTagovi(prev => [...prev, noviTag]);
+      setOdabraniKorisnikId(''); 
+    } catch (error) {
+      setError(t.greska);
+    }
+  };
+
+  const handleRemoveTag = async (tagId: number) => {
+    try {
+      // 1. Šaljemo zahtjev serveru da obriše tag
+      await deleteTag(tagId);
+      
+      // 2. Ažuriramo ekran: izbacujemo obrisani tag iz niza tagova
+      setTagovi(prev => prev.filter(tag => tag.id !== tagId));
+    } catch (error) {
+      setError(t.greska);
+    }
+  };
+
+  const filtriraniUcesnici = ucesnici.filter(u => {
+    const odgovaraPretrazi = u.ime.toLowerCase().includes(trazeniPojam.toLowerCase());
+    const vecTagovan = tagovi.some(tag => tag.oznaceni_korisnik_id === u.id);
+    return odgovaraPretrazi && !vecTagovan;
+  });
+
+  const odaberiKorisnika = (korisnik: ApiKorisnik) => {
+    setOdabraniKorisnikId(korisnik.id);
+    setTrazeniPojam(korisnik.ime);
+    setPrikaziPrijedloge(false);
+    setFokusiraniIndex(-1);
   };
 
   if (loading) {
@@ -263,15 +309,45 @@ export default function PhotoDetail() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-12 w-full max-w-[100vw] font-sans">
 
-      {/* Modal za brisanje */}
+      <div className="flex justify-between items-center mb-8 max-w-6xl mx-auto w-full">
+        {/* Lijevo — nazad */}
+        <button
+          onClick={handleBack}
+          className="text-gray-400 hover:text-white flex items-center gap-2 font-semibold transition-all"
+        >
+          {from === 'feed' ? t.nazadNaFeed : t.nazadUGaleriju}
+        </button>
+
+        {/* Desno — brisanje */}
+        {mozeSve && (
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-4 py-2 rounded-xl text-sm font-bold transition-all"
+          >
+            {t.obrisiSliku}
+          </button>
+        )}
+      </div>
+
+      {/* MODAL ZA BRISANJE */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full">
-            <h3 className="text-2xl font-bold mb-4">{t.brisuceSliku}</h3>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
+          <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-2xl font-bold mb-4 text-white">{t.brisuceSliku}</h3>
             <p className="text-gray-400 mb-8">{t.sigurna}</p>
             <div className="flex gap-4">
-              <button onClick={() => setShowDeleteModal(false)} className="flex-1 px-4 py-3 bg-white/5 rounded-xl hover:bg-white/10 font-semibold">{t.odustani}</button>
-              <button onClick={handleDelete} className="flex-1 px-4 py-3 bg-red-500 rounded-xl hover:bg-red-600 font-bold">{t.izbrisi}</button>
+              <button 
+                onClick={() => setShowDeleteModal(false)} 
+                className="flex-1 px-4 py-3 bg-white/5 rounded-xl hover:bg-white/10 text-white font-semibold transition-all"
+              >
+                {t.odustani}
+              </button>
+              <button 
+                onClick={handleDelete} 
+                className="flex-1 px-4 py-3 bg-red-500 rounded-xl hover:bg-red-600 text-white font-bold shadow-lg shadow-red-500/20 transition-all active:scale-95"
+              >
+                {t.izbrisi}
+              </button>
             </div>
           </div>
         </div>
@@ -283,17 +359,6 @@ export default function PhotoDetail() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8 max-w-6xl mx-auto">
-        <button onClick={handleBack} className="text-gray-400 hover:text-white flex items-center gap-2 font-semibold transition-all">
-          {from === 'feed' ? t.nazadNaFeed : t.nazadUGaleriju}
-        </button>
-        {jeOrganizator && (
-          <button onClick={() => setShowDeleteModal(true)} className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-4 py-2 rounded-xl text-sm font-bold transition-all">
-            {t.obrisiSliku}
-          </button>
-        )}
-      </div>
 
       <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-10 w-full">
 
@@ -331,91 +396,163 @@ export default function PhotoDetail() {
         {/* Sidebar */}
         <div className="lg:w-96 space-y-8 w-full">
 
-          {/* NOVO: Tagovi sekcija dodana u Sidebar */}
+          {/* Tagovi sekcija (Prava Baza Podataka) */}
           <div className="bg-[#111] p-6 rounded-3xl border border-white/5">
             <h3 className="text-xl font-bold mb-4">{t.tagovi}</h3>
             <div className="flex flex-wrap gap-2 mb-6">
-              {localTags.length === 0 ? (
+              {tagovi.length === 0 ? (
                 <p className="text-sm text-gray-500 italic">{t.nemaTagova}</p>
               ) : (
-                localTags.map(tag => (
-                  <span key={tag} className="bg-white/10 text-xs uppercase tracking-wider px-3 py-1.5 rounded-lg text-white font-semibold flex items-center gap-2">
-                    #{tag}
-                    <button onClick={() => handleRemoveTag(tag)} className="text-gray-400 hover:text-red-400">✕</button>
-                  </span>
-                ))
+                tagovi.map(tag => {
+                  // Backend vraća samo ID osobe, pa tražimo njeno ime u nizu učesnika
+                  const ucesnik = ucesnici.find(u => u.id === tag.oznaceni_korisnik_id);
+                  const ime = ucesnik ? ucesnik.ime : `Korisnik`;
+
+                  return (
+                    <span key={tag.id} className="bg-transparent border border-white/30 text-xs px-3 py-1.5 rounded-lg text-white font-semibold flex items-center gap-2">
+                      @{ime}
+                    </span>
+                  );
+                })
               )}
             </div>
-            <form onSubmit={handleAddTag} className="flex gap-2">
-              <input 
-                type="text" 
-                value={newTag} 
-                onChange={e => setNewTag(e.target.value)} 
-                placeholder={t.dodajTag}
-                className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-white/30 outline-none" 
-              />
-              <button type="submit" className="bg-white text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-200">+</button>
+            
+            <form onSubmit={(e) => {
+              handleAddTag(e);
+              setTrazeniPojam('');
+            }} className="flex gap-2">
+              
+              {/* Pametno polje za pretragu sa podrškom za tastaturu */}
+              <div className="relative flex-1">
+                <input 
+                  type="text" 
+                  value={trazeniPojam}
+                  onChange={e => {
+                    setTrazeniPojam(e.target.value);
+                    setPrikaziPrijedloge(true);
+                    setOdabraniKorisnikId('');
+                    setFokusiraniIndex(-1); // Resetujemo fokus kad korisnik kuca
+                  }}
+                  onFocus={() => setPrikaziPrijedloge(true)}
+                  onKeyDown={(e) => {
+                    if (prikaziPrijedloge && filtriraniUcesnici.length > 0) {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault(); // Spriječava pomjeranje cijele stranice
+                        setFokusiraniIndex(prev => Math.min(prev + 1, filtriraniUcesnici.length - 1));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setFokusiraniIndex(prev => Math.max(prev - 1, 0));
+                      } else if (e.key === 'Enter' && fokusiraniIndex >= 0) {
+                        e.preventDefault(); // Spriječava slanje cijele forme
+                        odaberiKorisnika(filtriraniUcesnici[fokusiraniIndex]);
+                      }
+                    }
+                  }}
+                  placeholder="Upiši ime osobe..."
+                  className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-white/30 outline-none" 
+                />
+
+                {/* Lista prijedloga koja iskače ispod polja */}
+                {/* Lista prijedloga koja iskače ispod polja */}
+                {prikaziPrijedloge && trazeniPojam && (
+                  <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl max-h-40 overflow-y-auto shadow-2xl">
+                    {filtriraniUcesnici.length > 0 ? (
+                      filtriraniUcesnici.map((u, index) => (
+                        <li 
+                          key={u.id}
+                          onClick={() => odaberiKorisnika(u)}
+                          onMouseEnter={() => setFokusiraniIndex(index)} 
+                          className={`px-4 py-2 text-sm cursor-pointer transition-colors ${
+                            fokusiraniIndex === index 
+                              ? 'bg-gray-200 text-black font-bold' // Osvijetljena pozadina i deblja slova kad idemo strelicama
+                              : 'hover:bg-gray-100 text-gray-800'  // Normalan izgled
+                          }`}
+                        >
+                          {u.ime}
+                        </li>
+                      ))
+                    ) : (
+                      <li className="px-4 py-2 text-sm text-gray-500 italic">Nema rezultata</li>
+                    )}
+                  </ul>
+                )}
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={!odabraniKorisnikId}
+                className="bg-white text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-200 disabled:opacity-50"
+              >
+                +
+              </button>
             </form>
           </div>
 
           {/* Lajkovi i favorit */}
-          <div className="bg-[#111] p-6 rounded-3xl border border-white/5 space-y-4">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
-              <div className="flex items-center gap-4">
-                <button onClick={handleLike} className="text-3xl hover:scale-110 transition-transform active:scale-95">
-                  {photo.liked_by_me ? '❤️' : '🤍'}
-                </button>
-                <span className="font-bold text-lg">{photo.broj_lajkova} {t.lajkova}</span>
-              </div>
-              {jeOrganizator && (
-                <button
-                  onClick={handleFavorit}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
-                    photo.favorit
-                      ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
-                      : 'bg-white/5 text-gray-400 border border-white/10'
-                  }`}
-                >
-                  {photo.favorit ? t.uFavoritima : t.dodajUFavorite}
-                </button>
-              )}
-            </div>
+      <div className="bg-[#111] p-6 rounded-3xl border border-white/5 space-y-4">
+        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+          <div className="flex items-center gap-4">
+            <button onClick={handleLike} className="text-3xl hover:scale-110 transition-transform active:scale-95">
+              {photo.liked_by_me ? '❤️' : '🤍'}
+            </button>
+            <span className="font-bold text-lg">{photo.broj_lajkova} {t.lajkova}</span>
+          </div>
+          {mozeSve && (
+            <button onClick={handleFavorit}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                photo.favorit
+                  ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                  : 'bg-white/5 text-gray-400 border border-white/10'
+              }`}>
+              {photo.favorit ? t.uFavoritima : t.dodajUFavorite}
+            </button>
+          )}
+        </div>
 
-            {/* Komentari */}
-            <h3 className="font-bold">
-              {t.komentari} ({komentari.length})
-            </h3>
+        {/* Komentari */}
+        <h3 className="font-bold">{t.komentari} ({komentari.length})</h3>
 
-            <form onSubmit={handleAddComment} className="flex gap-2">
-              <input
-                type="text"
-                value={newComment}
-                onChange={e => setNewComment(e.target.value)}
-                placeholder={t.napisiKomentar}
-                className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-white/30 outline-none"
-              />
-              <button
-                type="submit"
-                disabled={submittingComment || !newComment.trim()}
-                className="bg-white text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-200 disabled:opacity-50"
-              >
-                {submittingComment ? '...' : '➤'}
-              </button>
-            </form>
+        <form onSubmit={handleAddComment} className="flex gap-2">
+          <input
+            type="text"
+            value={newComment}
+            onChange={e => setNewComment(e.target.value)}
+            placeholder={t.napisiKomentar}
+            className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-white/30 outline-none"
+          />
+          <button
+            type="submit"
+            disabled={submittingComment || !newComment.trim()}
+            className="bg-white text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-200 disabled:opacity-50"
+          >
+            {submittingComment ? '...' : '➤'}
+          </button>
+        </form>
 
-            <div className="space-y-3 max-h-60 overflow-y-auto">
-              {komentari.length === 0 ? (
-                <p className="text-sm text-gray-500 italic">{t.nemaKomentara}</p>
-              ) : (
-                komentari.map(k => (
-                  <div key={k.id} className="bg-black/50 p-3 rounded-xl border border-white/5">
+        <div className="space-y-3 max-h-60 overflow-y-auto">
+          {komentari.length === 0 ? (
+            <p className="text-sm text-gray-500 italic">{t.nemaKomentara}</p>
+          ) : (
+            komentari.map(k => {
+              const mozeObrisati = mozeSve || k.korisnik_id === korisnikId;
+              return (
+                <div key={k.id} className="bg-black/50 p-3 rounded-xl border border-white/5 flex justify-between items-start gap-2">
+                  <div>
                     <p className="text-xs font-bold text-gray-400">{k.ime_korisnika}</p>
                     <p className="text-sm">{k.sadrzaj}</p>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
+                  {mozeObrisati && (
+                    <button onClick={() => handleDeleteKomentar(k.id)}
+                      className="text-gray-600 hover:text-red-400 text-xs shrink-0 transition-colors">
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
 
         </div>
       </div>

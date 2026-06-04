@@ -13,7 +13,7 @@ const PREVODI = {
     objavi: 'Objavi fotografije',
     odustani: 'Odustani',
     uploading: '⏳ Objavljujem...',
-    uspjeh: '✅ Objavljeno!',
+    uspjeh: '✓ Objavljeno!',
     greska: 'Greška pri uploadu. Pokušaj ponovo.',
     nisiOdabrala: 'Odaberi barem jednu sliku.',
   },
@@ -26,7 +26,7 @@ const PREVODI = {
     objavi: 'Publish photos',
     odustani: 'Cancel',
     uploading: '⏳ Publishing...',
-    uspjeh: '✅ Published!',
+    uspjeh: '✓ Published!',
     greska: 'Upload failed. Please try again.',
     nisiOdabrala: 'Select at least one photo.',
   }

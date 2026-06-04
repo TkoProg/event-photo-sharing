@@ -1,7 +1,8 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getAlbum, ApiAlbumDetalji, ApiFotografija } from '@/lib/api';
+import { getAlbum, ApiAlbumDetalji, ApiFotografija, objaviAlbum } from '@/lib/api';
+import Link from 'next/link';
 
 const PREVODI = {
   BS: {
@@ -33,6 +34,33 @@ export default function AlbumDetails() {
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [jezik, setJezik] = useState('BS');
+
+  const [copied, setCopied] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+
+  const handleCopyLink = () => {
+    if (album?.share_code) {
+      const link = `${window.location.origin}/share/albums/${album.share_code}`;
+      navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!album) return;
+    setPublishing(true);
+    try {
+      // ZAMJENA: Koristimo albumId iz linka umjesto album.id
+      const objavljeni = await objaviAlbum(Number(albumId));
+      
+      setAlbum({ ...album, javno: true, share_code: objavljeni.share_code });
+    } catch (err: any) {
+      alert("Greška pri objavi. Provjerite je li album finalni.");
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   useEffect(() => {
     const sacuvani = localStorage.getItem('izabraniJezik');
@@ -124,9 +152,7 @@ export default function AlbumDetails() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-12 font-sans overflow-x-hidden">
-      <div className="max-w-6xl mx-auto">
-
-        {/* Lightbox */}
+      {/* Lightbox */}
         {selectedPhoto && (
           <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center"
             onClick={() => setSelectedIndex(null)}>
@@ -153,23 +179,51 @@ export default function AlbumDetails() {
             </button>
           </div>
         )}
+        <header className="border-b border-white/10 px-6 md:px-12 py-6">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          
+          {/* Jedino dugme Nazad */}
+          <Link href={`/events/${eventId}?tab=albums`} className="inline-flex items-center gap-2 text-gray-400 hover:text-white text-sm font-semibold transition-colors">
+            {t.nazad}
+          </Link>
 
-        <button onClick={() => router.push(`/events/${eventId}?tab=albums`)}
-          className="text-gray-500 hover:text-white text-sm mb-6 flex items-center gap-2 transition-colors">
-          {t.nazad}
-        </button>
-
-        <header className="mb-10">
-          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">{album.naziv}</h1>
-          <p className="text-gray-400 mt-3 text-sm md:text-lg">{photos.length} {t.fotografija}</p>
-        </header>
-
+          {/* DESNA STRANA: Akcije za album */}
+          {album && (
+            <div className="flex gap-3">
+              {album.javno ? (
+                <button onClick={handleCopyLink}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${copied ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300'}`}>
+                  {copied ? '✅ Link kopiran!' : '🔗 Kopiraj link'}
+                </button>
+              ) : (
+                <button onClick={handlePublish} disabled={publishing}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-white text-black hover:bg-gray-200 transition-all disabled:opacity-50">
+                  {publishing ? 'Objavljivanje...' : '🌐 Objavi album'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </header>
+      <div className="max-w-6xl mx-auto px-6 md:px-12 pt-12 pb-6">
+        {album?.javno && (
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-green-400 mb-4 font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+            Objavljeno
+          </div>
+        )}
+        {/* Ako album ima naziv, prikazaće se. Ako nema, ostaće prostor. */}
+        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">{album?.naziv}</h1>
+        {album?.opis && <p className="text-gray-400 mt-3 text-lg">{album.opis}</p>}
+        <p className="text-gray-500 mt-2 text-sm">{photos.length} {t.fotografija}</p>
+      </div>
+      <div className="max-w-6xl mx-auto px-6 md:px-12 pb-16 mt-4">
         {photos.length === 0 ? (
-          <div className="text-center py-20 text-gray-500 bg-[#111] rounded-3xl border border-white/5">
+          <div className="text-center py-24 text-gray-500 bg-white/5 rounded-3xl border border-white/5">
             <p className="text-4xl mb-3">📭</p>
             <p>{t.albumPrazan}</p>
           </div>
-        ) : (
+          ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
             {photos.map((foto, index) => (
               <div key={foto.id} onClick={() => setSelectedIndex(index)}
@@ -182,7 +236,7 @@ export default function AlbumDetails() {
             ))}
           </div>
         )}
-      </div>
+        </div>
     </div>
   );
 }

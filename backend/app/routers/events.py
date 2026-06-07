@@ -348,6 +348,34 @@ def izmijeni_event(
     return event_u_response(session, event)
 
 
+# @router.delete("/{event_id}")
+# def deaktiviraj_event(
+#     event_id: int,
+#     session: Session = Depends(get_session),
+#     korisnik: Korisnik = Depends(get_trenutni_korisnik),
+# ):
+#     event = session.get(Event, event_id)
+
+#     if event is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Event ne postoji.",
+#         )
+
+#     if not korisnik_je_vlasnik_ili_admin(korisnik, event):
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN,
+#             detail="Nemate dozvolu za deaktivaciju ovog eventa.",
+#         )
+
+#     event.aktivan = False
+
+#     session.add(event)
+#     session.commit()
+
+#     return {"detail": "Event je deaktiviran."}
+
+
 @router.delete("/{event_id}")
 def deaktiviraj_event(
     event_id: int,
@@ -368,12 +396,11 @@ def deaktiviraj_event(
             detail="Nemate dozvolu za deaktivaciju ovog eventa.",
         )
 
-    event.aktivan = False
-
-    session.add(event)
+    # ─── PREPRAVLJENI DIO: TRAJNO BRISANJE IZ BAZE ──────────────────────
+    session.delete(event)
     session.commit()
 
-    return {"detail": "Event je deaktiviran."}
+    return {"detail": "Event je trajno obrisan."}
 
 
 @router.get("/{event_id}/participants", response_model=list[UcesnikResponse])

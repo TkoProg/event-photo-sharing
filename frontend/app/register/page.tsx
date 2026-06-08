@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation'; // Služi za preusmjeravanje nakon registracije
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { register, login } from '../../lib/api';
 
@@ -8,7 +8,6 @@ export default function RegisterPage() {
   const router = useRouter();
   const [jezik, setJezik] = useState('BS');
   
-  // Stanja za formu
   const [ime, setIme] = useState('');
   const [email, setEmail] = useState('');
   const [lozinka, setLozinka] = useState('');
@@ -36,47 +35,46 @@ export default function RegisterPage() {
     window.dispatchEvent(new Event('storage'));
   };
 
-  // Funkcija koja se okida kada korisnik klikne "Registruj se"
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // Sprječava osvježavanje stranice
+    e.preventDefault();
     setGreska('');
-    setLoading(false);
+    setLoading(true);
 
     if (!ime || !email || !lozinka) {
       setGreska(jezik === 'BS' ? 'Molimo popunite sva polja.' : 'Please fill in all fields.');
+      setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
-      // 1. Šaljemo podatke na backend registraciju (Podrazumijevano stavljamo ORGANIZATOR)
       await register(ime, email, lozinka, 'ORGANIZATOR', jezik.toLowerCase());
-      
-      // 2. Nakon uspješne registracije, odmah ga automatski prijavljujemo da dobije token
       const authData = await login(email, lozinka);
-      
-      // 3. Spašavamo token u localStorage
       localStorage.setItem('token', authData.access_token);
-      
-      // 4. Preusmjeravamo na dashboard
       router.push('/dashboard');
     } catch (err: any) {
-      setGreska(err.message || 'Registracija neuspješna.');
+      const kodGreske = err.message;
+      if (t[kodGreske]) {
+        setGreska(t[kodGreske]);
+      } else {
+        setGreska(jezik === 'BS' ? 'Registracija neuspješna.' : 'Registration failed.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const prevodi = {
+  const prevodi: Record<string, Record<string, string>> = {
     BS: {
       podnaslov: "Kreirajte račun za organizaciju događaja.",
       placeholderIme: "Ime i prezime",
       placeholderEmail: "Email",
       placeholderLozinka: "Lozinka",
       dugme: "Registruj se",
-      pitanje: "Već imaš račun?",
+      pitanje: "Veća imaš račun?",
       akcija: "Prijavi se",
-      ucitavanje: "Registracija..."
+      ucitavanje: "Registracija...",
+      ERR_EMAIL_EXISTS: "Korisnik sa ovim emailom već postoji.",
+      ERR_ADMIN_PUBLIC_REGISTER: "Admin nalog se ne može javno registrovati."
     },
     EN: {
       podnaslov: "Create an account to organize events.",
@@ -86,7 +84,9 @@ export default function RegisterPage() {
       dugme: "Register",
       pitanje: "Already have an account?",
       akcija: "Sign in",
-      ucitavanje: "Registering..."
+      ucitavanje: "Registering...",
+      ERR_EMAIL_EXISTS: "A user with this email already exists.",
+      ERR_ADMIN_PUBLIC_REGISTER: "Admin accounts cannot be registered publicly."
     }
   };
 
@@ -113,7 +113,6 @@ export default function RegisterPage() {
 
         <p className="text-xs text-gray-400 mb-6 font-light">{t.podnaslov}</p>
 
-        {/* PRIKAZ GREŠKE AKO POSTOJI */}
         {greska && (
           <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-xs text-red-400 text-left">
             {greska}

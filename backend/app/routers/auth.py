@@ -41,7 +41,7 @@ def get_trenutni_korisnik(
 ) -> Korisnik:
     greska = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Nije validan token.",
+        detail="ERR_INVALID_TOKEN",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
@@ -67,7 +67,7 @@ def get_trenutni_korisnik(
     if korisnik.blokiran:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Korisnik je blokiran.",
+            detail="ERR_USER_BLOCKED",
         )
 
     return korisnik
@@ -78,7 +78,7 @@ def zahtijevaj_uloge(*dozvoljene_uloge: UlogaKorisnika):
         if korisnik.uloga not in dozvoljene_uloge:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Nemate dozvolu za ovu akciju.",
+                detail="ERR_UNAUTHORIZED_ACTION",
             )
 
         return korisnik
@@ -94,7 +94,7 @@ def register(
     if podaci.uloga == UlogaKorisnika.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Admin se ne registruje javno.",
+            detail="ERR_ADMIN_PUBLIC_REGISTER",
         )
 
     postojeci = session.exec(
@@ -104,7 +104,7 @@ def register(
     if postojeci:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Korisnik sa ovim emailom vec postoji.",
+            detail="ERR_EMAIL_EXISTS",
         )
 
     korisnik = Korisnik(
@@ -134,19 +134,19 @@ def login(
     if korisnik is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Pogresan email ili lozinka.",
+            detail="ERR_BAD_CREDENTIALS",
         )
 
     if not provjeri_lozinku(podaci.lozinka, korisnik.lozinka_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Pogresan email ili lozinka.",
+            detail="ERR_BAD_CREDENTIALS",
         )
 
     if korisnik.blokiran:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Korisnik je blokiran.",
+            detail="ERR_USER_BLOCKED",
         )
 
     token = kreiraj_access_token(korisnik.id)

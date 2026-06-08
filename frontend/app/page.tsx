@@ -2,13 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { lgin } from '../lib/api'; // Uvozimo našu ispravljenu login funkciju
+import { login } from '../lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
   const [jezik, setJezik] = useState('BS');
   
-  // Stanja za formu
   const [email, setEmail] = useState('');
   const [lozinka, setLozinka] = useState('');
   const [greska, setGreska] = useState('');
@@ -24,7 +23,6 @@ export default function LoginPage() {
     localStorage.setItem('izabraniJezik', noviJezik);
   };
 
-  // Funkcija za slanje podataka na backend
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setGreska('');
@@ -37,23 +35,22 @@ export default function LoginPage() {
     }
 
     try {
-      // Šaljemo podatke Tamirovom backendu kroz naš api.ts
-      const authData = await lgin(email, lozinka);
-      
-      // Spašavamo dobijeni token u localStorage
+      const authData = await login(email, lozinka);
       localStorage.setItem('token', authData.access_token);
-      
-      // Preusmjeravamo na dashboard tek kad je prijava uspješna
       router.push('/dashboard');
     } catch (err: any) {
-      // Ako Tamir vrati "Pogresan email ili lozinka.", to ispisujemo na ekranu
-      setGreska(err.message || 'Prijava neuspješna.');
+      const kodGreske = err.message;
+      if (t[kodGreske]) {
+        setGreska(t[kodGreske]);
+      } else {
+        setGreska(jezik === 'BS' ? 'Prijava neuspješna.' : 'Sign in failed.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const prevodi = {
+  const prevodi: Record<string, Record<string, string>> = {
     BS: {
       podnaslov: "Prijavite se na svoj račun.",
       placeholderEmail: "Email",
@@ -61,7 +58,9 @@ export default function LoginPage() {
       dugme: "Prijavi se",
       pitanje: "Nemaš račun?",
       akcija: "Registruj se",
-      ucitavanje: "Prijava..."
+      ucitavanje: "Prijava...",
+      ERR_BAD_CREDENTIALS: "Pogrešan email ili lozinka.",
+      ERR_USER_BLOCKED: "Vaš korisnički nalog je blokiran."
     },
     EN: {
       podnaslov: "Sign in to your account.",
@@ -70,7 +69,9 @@ export default function LoginPage() {
       dugme: "Sign In",
       pitanje: "Don't have an account?",
       akcija: "Register",
-      ucitavanje: "Signing in..."
+      ucitavanje: "Signing in...",
+      ERR_BAD_CREDENTIALS: "Incorrect email or password.",
+      ERR_USER_BLOCKED: "Your account has been blocked."
     }
   };
 

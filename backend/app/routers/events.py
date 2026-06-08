@@ -16,7 +16,6 @@ from app.schemas.event import (
     UcesnikResponse,
 )
 
-
 router = APIRouter(prefix="/events", tags=["Events"])
 
 
@@ -71,42 +70,17 @@ def event_u_response(session: Session, event: Event) -> EventResponse:
     )
 
 
-# def korisnik_ima_pristup_eventu(
-#     session: Session,
-#     korisnik: Korisnik,
-#     event: Event,
-# ) -> bool:
-    
-#     if korisnik.uloga == UlogaKorisnika.ADMIN:
-#         return True
-
-#     if korisnik.uloga == UlogaKorisnika.ORGANIZATOR:
-#         return event.organizator_id == korisnik.id
-
-#     ucesce = session.exec(
-#         select(EventUcesnik).where(
-#             EventUcesnik.event_id == event.id,
-#             EventUcesnik.korisnik_id == korisnik.id,
-#             EventUcesnik.status == "AKTIVAN",
-#         )
-#     ).first()
-
-#     return ucesce is not None
-
 def korisnik_ima_pristup_eventu(
     session: Session,
     korisnik: Korisnik,
     event: Event,
 ) -> bool:
-
     if korisnik.uloga == UlogaKorisnika.ADMIN:
         return True
 
-    # vlasnik eventa uvijek ima pristup
     if event.organizator_id == korisnik.id:
         return True
 
-    # svi ostali preko EventUcesnik
     ucesce = session.exec(
         select(EventUcesnik).where(
             EventUcesnik.event_id == event.id,
@@ -125,49 +99,6 @@ def korisnik_je_vlasnik_ili_admin(korisnik: Korisnik, event: Event) -> bool:
     return event.organizator_id == korisnik.id
 
 
-# @router.post("/join", response_model=EventResponse)
-# def join_event(
-#     podaci: EventJoinRequest,
-#     session: Session = Depends(get_session),
-#     korisnik: Korisnik = Depends(get_trenutni_korisnik),
-# ):
-#     event = session.exec(
-#         select(Event).where(Event.kod == podaci.kod.upper())
-#     ).first()
-
-#     if event is None:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Event sa ovim kodom ne postoji.",
-#         )
-
-#     if not event.aktivan:
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail="Event nije aktivan.",
-#         )
-
-#     postojece_ucesce = session.exec(
-#         select(EventUcesnik).where(
-#             EventUcesnik.event_id == event.id,
-#             EventUcesnik.korisnik_id == korisnik.id,
-#         )
-#     ).first()
-
-#     if postojece_ucesce:
-#         return event_u_response(session, event)
-
-#     ucesce = EventUcesnik(
-#         event_id=event.id,
-#         korisnik_id=korisnik.id,
-#         status="AKTIVAN",
-#     )
-
-#     session.add(ucesce)
-#     session.commit()
-
-#     return event_u_response(session, event)
-
 @router.post("/join", response_model=EventResponse)
 def join_event(
     podaci: EventJoinRequest,
@@ -181,27 +112,27 @@ def join_event(
     if event is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event sa ovim kodom ne postoji.",
+            detail="ERR_EVENT_NOT_FOUND",
         )
 
     if not event.aktivan:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Event nije aktivan.",
+            detail="ERR_EVENT_INACTIVE",
         )
 
     # Admin ne pristupa eventima putem koda
     if korisnik.uloga == UlogaKorisnika.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administrator ne pristupa eventima putem koda.",
+            detail="ERR_ADMIN_CANNOT_JOIN",
         )
 
     # Organizator svog eventa ne pristupa putem koda
     if event.organizator_id == korisnik.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vi ste organizator ovog eventa. Pristupite mu preko liste svojih događaja.",
+            detail="ERR_ORGANIZER_CANNOT_JOIN",
         )
 
     postojece_ucesce = session.exec(
@@ -348,34 +279,6 @@ def izmijeni_event(
     return event_u_response(session, event)
 
 
-# @router.delete("/{event_id}")
-# def deaktiviraj_event(
-#     event_id: int,
-#     session: Session = Depends(get_session),
-#     korisnik: Korisnik = Depends(get_trenutni_korisnik),
-# ):
-#     event = session.get(Event, event_id)
-
-#     if event is None:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Event ne postoji.",
-#         )
-
-#     if not korisnik_je_vlasnik_ili_admin(korisnik, event):
-#         raise HTTPException(
-#             status_code=status.HTTP_403_FORBIDDEN,
-#             detail="Nemate dozvolu za deaktivaciju ovog eventa.",
-#         )
-
-#     event.aktivan = False
-
-#     session.add(event)
-#     session.commit()
-
-#     return {"detail": "Event je deaktiviran."}
-
-
 @router.delete("/{event_id}")
 def deaktiviraj_event(
     event_id: int,
@@ -396,7 +299,6 @@ def deaktiviraj_event(
             detail="Nemate dozvolu za deaktivaciju ovog eventa.",
         )
 
-    # ─── PREPRAVLJENI DIO: TRAJNO BRISANJE IZ BAZE ──────────────────────
     session.delete(event)
     session.commit()
 

@@ -2,13 +2,49 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { pridruziSeEventu } from '../../lib/api'; // Provjeri putanju prema svom lib folderu
+import { pridruziSeEventu } from '../../lib/api';
+
+interface PrevodStranice {
+  naslov: string;
+  podnaslov: string;
+  placeholderKod: string;
+  dugme: string;
+  ucitavanje: string;
+  nazad: string;
+  [key: string]: string;
+}
+
+const PREVODI_PODACI: Record<string, PrevodStranice> = {
+  BS: {
+    naslov: "Pridružite se",
+    podnaslov: "Unesite jedinstveni kod događaja.",
+    placeholderKod: "Unesite kod",
+    dugme: "Pristupi galeriji",
+    ucitavanje: "Provjera...",
+    nazad: "← Nazad",
+    ERR_EVENT_NOT_FOUND: "Događaj sa ovim kodom ne postoji.",
+    ERR_EVENT_INACTIVE: "Događaj više nije aktivan.",
+    ERR_ADMIN_CANNOT_JOIN: "Administrator ne pristupa eventima putem koda.",
+    ERR_ORGANIZER_CANNOT_JOIN: "Vi ste organizator ovog eventa. Pristupite mu preko liste svojih događaja."
+  },
+  EN: {
+    naslov: "Join Event",
+    podnaslov: "Enter the unique event code.",
+    placeholderKod: "Enter code",
+    dugme: "Access Gallery",
+    ucitavanje: "Checking...",
+    nazad: "← Back",
+    ERR_EVENT_NOT_FOUND: "Event with this code does not exist.",
+    ERR_EVENT_INACTIVE: "This event is no longer active.",
+    ERR_ADMIN_CANNOT_JOIN: "Administrator cannot join events via code.",
+    ERR_ORGANIZER_CANNOT_JOIN: "You are the organizer of this event. Access it through your event list."
+  }
+};
 
 export default function JoinPage() {
   const router = useRouter();
   const [jezik, setJezik] = useState('BS');
   
-  // Stanja za formu
   const [kod, setKod] = useState('');
   const [greska, setGreska] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,6 +70,8 @@ export default function JoinPage() {
     window.dispatchEvent(new Event('storage'));
   };
 
+  const t = PREVODI_PODACI[jezik] || PREVODI_PODACI.BS;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setGreska('');
@@ -46,39 +84,19 @@ export default function JoinPage() {
     setLoading(true);
 
     try {
-      // Šaljemo kod na backend (Tamir ga u kodu prebaci u uppercase, pa je svejedno šta uneseš)
       const event = await pridruziSeEventu(kod.trim());
-      
-      // Ako kod valja, backend nas učlani u event i mi idemo direktno u njegovu galeriju!
       router.push(`/events/${event.id}`);
     } catch (err: any) {
-      // Ovdje hvatamo Tamirov "Event sa ovim kodom ne postoji." ili "Event nije aktivan."
-      setGreska(err.message || (jezik === 'BS' ? 'Greška pri pridruživanju.' : 'Error joining event.'));
+      const kodGreske = err.message;
+      if (kodGreske && t[kodGreske]) {
+        setGreska(t[kodGreske]);
+      } else {
+        setGreska(jezik === 'BS' ? 'Greška pri pridruživanju.' : 'Error joining event.');
+      }
     } finally {
       setLoading(false);
     }
   };
-
-  const prevodi = {
-    BS: {
-      naslov: "Pridružite se",
-      podnaslov: "Unesite jedinstveni kod događaja.",
-      placeholderKod: "Unesite kod",
-      dugme: "Pristupi galeriji",
-      ucitavanje: "Provjera...",
-      nazad: "← Nazad"
-    },
-    EN: {
-      naslov: "Join Event",
-      podnaslov: "Enter the unique event code.",
-      placeholderKod: "Enter code",
-      dugme: "Access Gallery",
-      ucitavanje: "Checking...",
-      nazad: "← Back"
-    }
-  };
-
-  const t = jezik === 'BS' ? prevodi.BS : prevodi.EN;
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center relative overflow-hidden font-sans">

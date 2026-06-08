@@ -35,7 +35,7 @@ def zahtijevaj_admina(korisnik: Korisnik = Depends(get_trenutni_korisnik)) -> Ko
     if korisnik.uloga != UlogaKorisnika.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Nemate dozvolu za ovu akciju.",
+            detail="ERR_UNAUTHORIZED_ACTION",
         )
 
     return korisnik
@@ -88,7 +88,7 @@ def admin_blokiraj_korisnika(
     if admin.id == korisnik_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ne mozete blokirati sebe.",
+            detail="ERR_CANNOT_BLOCK_SELF",
         )
 
     korisnik = session.get(Korisnik, korisnik_id)
@@ -96,7 +96,7 @@ def admin_blokiraj_korisnika(
     if korisnik is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Korisnik ne postoji.",
+            detail="ERR_USER_NOT_FOUND",
         )
 
     korisnik.blokiran = podaci.blokiran
@@ -135,5 +135,3 @@ def admin_fotografije(
         rezultat.append(fotografija_u_response(session, foto, admin))
 
     return rezultat
-
-

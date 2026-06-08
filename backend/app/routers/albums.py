@@ -223,7 +223,7 @@ def objavi_album(
             detail="Nemate dozvolu za ovu akciju.",
         )
 
-    provjeri_finalni_album(album)
+    #provjeri_finalni_album(album)
 
     if album.share_code is None:
         album.share_code = generisi_share_code(session)
@@ -245,11 +245,10 @@ def javni_album(
         select(Album).where(Album.share_code == share_code)
     ).first()
 
-    if album is None or not album.javno or album.tip != TipAlbuma.FINALNI:
+    if album is None or not album.javno:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Javni album ne postoji.",
         )
 
     return album_detail_response(session, album, None)
-

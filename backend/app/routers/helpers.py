@@ -12,6 +12,7 @@ from app.models.lajk import Lajk
 from app.schemas.album import AlbumDetailResponse, AlbumResponse
 from app.schemas.fotografija import FotografijaResponse
 from app.services.upload_service import napravi_public_url
+from app.models.tag import Tag
 
 
 def pronadji_event_ili_greska(session: Session, event_id: int) -> Event:
@@ -100,6 +101,20 @@ def fotografija_u_response(
 
         liked_by_me = postojeci_lajk is not None
 
+    tagovi_baza = session.exec(
+        select(Tag).where(Tag.fotografija_id == fotografija.id)
+    ).all()
+
+    tagovi_sigurno = []
+    for t in tagovi_baza:
+        tagovi_sigurno.append({
+            "id": t.id,
+            "fotografija_id": t.fotografija_id,
+            "oznaceni_korisnik_id": t.oznaceni_korisnik_id,
+            "oznacio_korisnik_id": t.oznacio_korisnik_id,
+            "kreiran_at": t.kreiran_at
+        })
+
     return FotografijaResponse(
         id=fotografija.id,
         event_id=fotografija.event_id,
@@ -110,6 +125,7 @@ def fotografija_u_response(
         broj_komentara=broj_komentara(session, fotografija.id),
         favorit=fotografija.favorit,
         liked_by_me=liked_by_me,
+        tagovi=tagovi_sigurno,
     )
 
 

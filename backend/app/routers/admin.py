@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models.album import Album
-from app.models.event import Event
+from app.models.album import Album, AlbumFotografija
+from app.models.event import Event, EventUcesnik
 from app.models.fotografija import Fotografija
 from app.models.komentar import Komentar
 from app.models.korisnik import Korisnik, UlogaKorisnika
 from app.models.lajk import Lajk
+from app.models.tag import Tag
 from app.routers.auth import get_trenutni_korisnik
 from app.routers.events import event_u_response
 from app.routers.helpers import fotografija_u_response
@@ -39,6 +40,65 @@ def zahtijevaj_admina(korisnik: Korisnik = Depends(get_trenutni_korisnik)) -> Ko
         )
 
     return korisnik
+
+
+def obrisi_fotografije(session: Session, fotografije: list[Fotografija]) -> None:
+    for fotografija in fotografije:
+        album_veze = session.exec(
+            select(AlbumFotografija).where(AlbumFotografija.fotografija_id == fotografija.id)
+        ).all()
+        komentari = session.exec(
+            select(Komentar).where(Komentar.fotografija_id == fotografija.id)
+        ).all()
+        lajkovi = session.exec(
+            select(Lajk).where(Lajk.fotografija_id == fotografija.id)
+        ).all()
+        tagovi = session.exec(
+            select(Tag).where(Tag.fotografija_id == fotografija.id)
+        ).all()
+
+        for zapis in [*album_veze, *komentari, *lajkovi, *tagovi]:
+            session.delete(zapis)
+
+        session.delete(fotografija)
+
+
+def obrisi_event(session: Session, event: Event) -> None:
+    fotografije = session.exec(
+        select(Fotografija).where(Fotografija.event_id == event.id)
+    ).all()
+    obrisi_fotografije(session, fotografije)
+
+    albumi = session.exec(select(Album).where(Album.event_id == event.id)).all()
+    for album in albumi:
+        album_veze = session.exec(
+            select(AlbumFotografija).where(AlbumFotografija.album_id == album.id)
+        ).all()
+        for veza in album_veze:
+            session.delete(veza)
+        session.delete(album)
+
+    ucesca = session.exec(
+        select(EventUcesnik).where(EventUcesnik.event_id == event.id)
+    ).all()
+    for ucesce in ucesca:
+        session.delete(ucesce)
+
+    session.delete(event)
+
+
+def obrisi_korisnicke_veze(session: Session, korisnik_id: int) -> None:
+    komentari = session.exec(select(Komentar).where(Komentar.korisnik_id == korisnik_id)).all()
+    lajkovi = session.exec(select(Lajk).where(Lajk.korisnik_id == korisnik_id)).all()
+    tagovi = session.exec(
+        select(Tag).where(
+            (Tag.oznaceni_korisnik_id == korisnik_id) | (Tag.oznacio_korisnik_id == korisnik_id)
+        )
+    ).all()
+    ucesca = session.exec(select(EventUcesnik).where(EventUcesnik.korisnik_id == korisnik_id)).all()
+
+    for zapis in [*komentari, *lajkovi, *tagovi, *ucesca]:
+        session.delete(zapis)
 
 
 @router.get("/stats", response_model=AdminStatsResponse)
@@ -105,6 +165,44 @@ def admin_blokiraj_korisnika(
     session.refresh(korisnik)
 
     return korisnik_u_response(korisnik)
+
+
+@router.delete("/users/{korisnik_id}")
+def admin_obrisi_korisnika(
+    korisnik_id: int,
+    session: Session = Depends(get_session),
+    admin: Korisnik = Depends(zahtijevaj_admina),
+):
+    if admin.id == korisnik_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ERR_CANNOT_DELETE_SELF",
+        )
+
+    korisnik = session.get(Korisnik, korisnik_id)
+
+    if korisnik is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ERR_USER_NOT_FOUND",
+        )
+
+    eventi = session.exec(
+        select(Event).where(Event.organizator_id == korisnik_id)
+    ).all()
+    for event in eventi:
+        obrisi_event(session, event)
+
+    fotografije = session.exec(
+        select(Fotografija).where(Fotografija.korisnik_id == korisnik_id)
+    ).all()
+    obrisi_fotografije(session, fotografije)
+    obrisi_korisnicke_veze(session, korisnik_id)
+
+    session.delete(korisnik)
+    session.commit()
+
+    return {"detail": "Korisnik je trajno obrisan."}
 
 
 @router.get("/events", response_model=list[EventResponse])

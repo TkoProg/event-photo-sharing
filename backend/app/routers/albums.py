@@ -5,7 +5,7 @@ from app.database import get_session
 from app.models.album import Album, AlbumFotografija, TipAlbuma
 from app.models.event import Event
 from app.models.fotografija import Fotografija
-from app.models.korisnik import Korisnik, UlogaKorisnika
+from app.models.korisnik import Korisnik
 from app.routers.auth import get_trenutni_korisnik
 from app.routers.helpers import (
     album_detail_response,
@@ -35,7 +35,7 @@ def kreiraj_album(
 ):
     event = pronadji_event_ili_greska(session, podaci.event_id)
 
-    if korisnik.uloga != UlogaKorisnika.ADMIN and not korisnik_moze_urediti_event(korisnik, event):
+    if not korisnik_ima_pristup_eventu(session, korisnik, event):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Nemate dozvolu za ovu akciju.",
@@ -123,7 +123,7 @@ def dodaj_fotografiju_u_album(
 
     event = session.get(Event, album.event_id)
 
-    if event is None or not korisnik_moze_urediti_event(korisnik, event):
+    if event is None or not korisnik_ima_pristup_eventu(session, korisnik, event):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Nemate dozvolu za ovu akciju.",
@@ -201,6 +201,41 @@ def ukloni_fotografiju_iz_albuma(
     return album_detail_response(session, album, korisnik)
 
 
+@router.delete("/albums/{album_id}")
+def obrisi_album(
+    album_id: int,
+    session: Session = Depends(get_session),
+    korisnik: Korisnik = Depends(get_trenutni_korisnik),
+):
+    album = session.get(Album, album_id)
+
+    if album is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Album ne postoji.",
+        )
+
+    event = session.get(Event, album.event_id)
+
+    if event is None or not korisnik_moze_urediti_event(korisnik, event):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nemate dozvolu za ovu akciju.",
+        )
+
+    veze = session.exec(
+        select(AlbumFotografija).where(AlbumFotografija.album_id == album.id)
+    ).all()
+
+    for veza in veze:
+        session.delete(veza)
+
+    session.delete(album)
+    session.commit()
+
+    return {"detail": "Album je obrisan."}
+
+
 @router.post("/albums/{album_id}/publish", response_model=AlbumResponse)
 def objavi_album(
     album_id: int,
@@ -252,4 +287,3 @@ def javni_album(
         )
 
     return album_detail_response(session, album, None)
-

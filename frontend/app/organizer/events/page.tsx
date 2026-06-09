@@ -1,10 +1,11 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getMojiEventi, ApiEvent } from '../../../lib/api'; // Uvozimo funkciju i tip
+import { getMojiEventi, getTrenutniKorisnik, ApiEvent } from '../../../lib/api'; // Uvozimo funkciju i tip
 
 export default function EventsListPage() {
   const [jezik, setJezik] = useState('BS');
+  const [uloga, setUloga] = useState<string | null>(null);
   
   // Stanja za podatke sa backenda
   const [eventi, setEventi] = useState<ApiEvent[]>([]);
@@ -14,8 +15,10 @@ export default function EventsListPage() {
   useEffect(() => {
     // 1. Jezik provjera
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
+    let animationFrameId: number | null = null;
+
     if (sacuvaniJezik) {
-      setJezik(sacuvaniJezik);
+      animationFrameId = window.requestAnimationFrame(() => setJezik(sacuvaniJezik));
     }
 
     const provjeriJezik = () => {
@@ -29,10 +32,15 @@ export default function EventsListPage() {
     const ucitajEvente = async () => {
       try {
         setLoading(true);
-        const podaci = await getMojiEventi();
+        const [korisnik, podaci] = await Promise.all([
+          getTrenutniKorisnik(),
+          getMojiEventi(),
+        ]);
+        setUloga(korisnik.uloga);
         setEventi(podaci);
-      } catch (err: any) {
-        setGreska(err.message || 'Greška pri učitavanju događaja.');
+      } catch (err: unknown) {
+        setGreska(err instanceof Error ? err.message : 'Greška pri učitavanju događaja.');
+        setUloga(null);
       } finally {
         setLoading(false);
       }
@@ -40,7 +48,10 @@ export default function EventsListPage() {
 
     ucitajEvente();
 
-    return () => window.removeEventListener('storage', provjeriJezik);
+    return () => {
+      window.removeEventListener('storage', provjeriJezik);
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+    };
   }, []);
 
   const promijeniJezik = (noviJezik: string) => {
@@ -52,23 +63,29 @@ export default function EventsListPage() {
   const prevodi = {
     BS: {
       naslov: "Moji događaji",
+      adminNaslov: "Pregled svih događaja",
       dugmeNovi: "+ Novi događaj",
       kodGosta: "Kod za goste",
       nazad: "← Nazad na početak",
       ucitavanje: "Učitavanje događaja...",
-      nemaEventa: "Nemate kreiranih događaja. Kreirajte svoj prvi klikom na dugme iznad!"
+      nemaEventa: "Nemate kreiranih događaja. Kreirajte svoj prvi klikom na dugme iznad!",
+      nemaEventaBezKreiranja: "Nemate događaja za prikaz."
     },
     EN: {
       naslov: "My Events",
+      adminNaslov: "All events overview",
       dugmeNovi: "+ New Event",
       kodGosta: "Guest code",
       nazad: "← Back to home",
       ucitavanje: "Loading events...",
-      nemaEventa: "No events created yet. Create your first event by clicking the button above!"
+      nemaEventa: "No events created yet. Create your first event by clicking the button above!",
+      nemaEventaBezKreiranja: "No events to display."
     }
   };
 
   const t = jezik === 'BS' ? prevodi.BS : prevodi.EN;
+  const mozeKreiratiEvent = uloga === 'ORGANIZATOR';
+  const naslovStranice = uloga === 'ADMIN' ? t.adminNaslov : t.naslov;
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center relative overflow-hidden font-sans py-12 px-6">
@@ -76,7 +93,7 @@ export default function EventsListPage() {
 
       <div className="relative z-10 w-full max-w-4xl">
         <div className="flex justify-between items-center mb-12">
-          <h1 className="text-3xl font-bold tracking-tight">{t.naslov}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{naslovStranice}</h1>
           <div className="flex items-center gap-4">
             <button 
               type="button"
@@ -85,9 +102,11 @@ export default function EventsListPage() {
             >
               {jezik === 'BS' ? '🇬🇧 EN' : '🇧🇦 BS'}
             </button>
-            <Link href="/organizer/events/new" className="bg-[#e60023] px-6 py-3 rounded-full text-sm font-bold hover:bg-[#c4001d] transition-colors shadow-lg">
-              {t.dugmeNovi}
-            </Link>
+            {mozeKreiratiEvent && (
+              <Link href="/organizer/events/new" className="bg-[#e60023] px-6 py-3 rounded-full text-sm font-bold hover:bg-[#c4001d] transition-colors shadow-lg">
+                {t.dugmeNovi}
+              </Link>
+            )}
           </div>
         </div>
 
@@ -106,7 +125,7 @@ export default function EventsListPage() {
         ) : eventi.length === 0 ? (
           /* Prikaz poruke ako je baza prazna */
           <div className="text-center text-gray-500 text-sm py-12 font-light border border-dashed border-white/10 rounded-[2rem] bg-white/5 p-8">
-            {t.nemaEventa}
+            {mozeKreiratiEvent ? t.nemaEventa : t.nemaEventaBezKreiranja}
           </div>
         ) : (
           /* ISPRAVNA PETLJA SA REALNIM PODACIMA */

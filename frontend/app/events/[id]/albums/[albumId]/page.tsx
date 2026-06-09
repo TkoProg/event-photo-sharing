@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getAlbum, ApiAlbumDetalji, ApiFotografija, objaviAlbum } from '@/lib/api';
+import { getAlbum, getTrenutniKorisnik, ApiAlbumDetalji, ApiFotografija, objaviAlbum } from '@/lib/api';
 import Link from 'next/link';
 
 const PREVODI = {
@@ -34,6 +34,7 @@ export default function AlbumDetails() {
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [jezik, setJezik] = useState('BS');
+  const [mozeUpravljatiAlbumom, setMozeUpravljatiAlbumom] = useState(false);
 
   const [copied, setCopied] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -70,6 +71,10 @@ export default function AlbumDetails() {
       if (trenutni) setJezik(trenutni);
     };
     window.addEventListener('storage', provjeri);
+
+    getTrenutniKorisnik()
+      .then(korisnik => setMozeUpravljatiAlbumom(korisnik.uloga === 'ADMIN' || korisnik.uloga === 'ORGANIZATOR'))
+      .catch(() => setMozeUpravljatiAlbumom(false));
 
     if (albumId === 'favorites') {
       // Čitamo favorite iz backenda
@@ -188,7 +193,7 @@ export default function AlbumDetails() {
           </Link>
 
           {/* DESNA STRANA: Akcije za album */}
-          {album && (
+          {album && mozeUpravljatiAlbumom && (
             <div className="flex gap-3">
               {album.javno ? (
                 <button onClick={handleCopyLink}

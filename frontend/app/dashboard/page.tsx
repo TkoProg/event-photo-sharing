@@ -1,14 +1,18 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getTrenutniKorisnik } from '@/lib/api';
 
 export default function DashboardPage() {
   const [jezik, setJezik] = useState('BS');
+  const [uloga, setUloga] = useState<string | null>(null);
 
   useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
+    let animationFrameId: number | null = null;
+
     if (sacuvaniJezik) {
-      setJezik(sacuvaniJezik);
+      animationFrameId = window.requestAnimationFrame(() => setJezik(sacuvaniJezik));
     }
 
     const provjeriJezik = () => {
@@ -17,7 +21,16 @@ export default function DashboardPage() {
     };
 
     window.addEventListener('storage', provjeriJezik);
-    return () => window.removeEventListener('storage', provjeriJezik);
+    return () => {
+      window.removeEventListener('storage', provjeriJezik);
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  useEffect(() => {
+    getTrenutniKorisnik()
+      .then(korisnik => setUloga(korisnik.uloga))
+      .catch(() => setUloga(null));
   }, []);
 
   const promijeniJezik = (noviJezik: string) => {
@@ -48,6 +61,7 @@ export default function DashboardPage() {
       opis: "Tamo gdje se vaše fotografije pretvaraju u uspomene koje traju. Podijelite radost, emocije i uspomene sa svima koji su bili dio trenutka.",
       unesiKod: "Unesi kod događaja",
       mojiEventi: "Moji događaji",
+      pregledSvihDogadjaja: "Pregled svih događaja",
       adminNaslov: "Admin Panel",
       adminOpis: "Upravljanje korisnicima i sistemom"
     },
@@ -59,12 +73,15 @@ export default function DashboardPage() {
       opis: "Where your photos turn into memories that last. Share joy, emotions, and memories with everyone who was part of the moment.",
       unesiKod: "Enter event code",
       mojiEventi: "My events",
+      pregledSvihDogadjaja: "All events overview",
       adminNaslov: "Admin Panel",
       adminOpis: "User and system management"
     }
   };
 
   const t = jezik === 'BS' ? prevodi.BS : prevodi.EN;
+  const jeAdmin = uloga === 'ADMIN';
+  const jeGost = uloga === 'GOST';
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans overflow-hidden relative flex flex-col">
@@ -120,24 +137,28 @@ export default function DashboardPage() {
 
         <div className="flex flex-col items-center gap-4 w-full max-w-lg mx-auto z-20 pb-16">
           <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
-            <Link href="/join" className="w-full sm:w-auto px-8 py-4 bg-white text-black rounded-full text-sm font-bold hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.2)]">{t.unesiKod}</Link>
-            <Link href="/organizer/events" className="w-full sm:w-auto px-8 py-4 bg-white/5 border border-white/10 text-white rounded-full text-sm font-bold hover:bg-white/10 transition-colors backdrop-blur-md">{t.mojiEventi}</Link>
+            {jeGost && (
+              <Link href="/join" className="w-full sm:w-auto px-8 py-4 bg-white text-black rounded-full text-sm font-bold hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.2)]">{t.unesiKod}</Link>
+            )}
+            <Link href="/organizer/events" className="w-full sm:w-auto px-8 py-4 bg-white/5 border border-white/10 text-white rounded-full text-sm font-bold hover:bg-white/10 transition-colors backdrop-blur-md">{jeAdmin ? t.pregledSvihDogadjaja : t.mojiEventi}</Link>
           </div>
 
-          <Link href="/admin" className="w-full block group">
-            <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-xl flex items-center justify-between group-hover:border-[#e60023]/50 transition-all">
-              <div className="flex items-center gap-4 text-left">
-                <div className="w-12 h-12 bg-[#e60023]/20 rounded-2xl flex items-center justify-center text-[#e60023]">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          {jeAdmin && (
+            <Link href="/admin" className="w-full block group">
+              <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-xl flex items-center justify-between group-hover:border-[#e60023]/50 transition-all">
+                <div className="flex items-center gap-4 text-left">
+                  <div className="w-12 h-12 bg-[#e60023]/20 rounded-2xl flex items-center justify-center text-[#e60023]">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-white">{t.adminNaslov}</h3>
+                    <p className="text-gray-500 text-xs text-left">{t.adminOpis}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-lg text-white">{t.adminNaslov}</h3>
-                  <p className="text-gray-500 text-xs text-left">{t.adminOpis}</p>
-                </div>
+                <div className="text-gray-500 group-hover:text-white transition-colors">&rarr;</div>
               </div>
-              <div className="text-gray-500 group-hover:text-white transition-colors">&rarr;</div>
-            </div>
-          </Link>
+            </Link>
+          )}
         </div>
       </main>
     </div>

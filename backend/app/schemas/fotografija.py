@@ -3,18 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
-class FotografijaResponse(BaseModel):
-    id: int
-    event_id: int
-    korisnik_id: int
-    url: str
-    vrijeme_uploada: datetime
-    broj_lajkova: int
-    broj_komentara: int
-    favorit: bool
-    liked_by_me: bool
-
-
 class TagCreateRequest(BaseModel):
     oznaceni_korisnik_id: int
 
@@ -25,4 +13,17 @@ class TagResponse(BaseModel):
     oznaceni_korisnik_id: int
     oznacio_korisnik_id: int
     kreiran_at: datetime
+    oznaceni_korisnik_ime: str | None = None
 
+
+class FotografijaResponse(BaseModel):
+    id: int
+    event_id: int
+    korisnik_id: int
+    url: str
+    vrijeme_uploada: datetime
+    broj_lajkova: int
+    broj_komentara: int
+    favorit: bool
+    liked_by_me: bool
+    tagovi: list[TagResponse] = []

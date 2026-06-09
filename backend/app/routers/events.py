@@ -279,6 +279,46 @@ def izmijeni_event(
     return event_u_response(session, event)
 
 
+@router.delete("/{event_id}/participants/{korisnik_id}")
+def ukloni_ucesnika(
+    event_id: int,
+    korisnik_id: int,
+    session: Session = Depends(get_session),
+    korisnik: Korisnik = Depends(get_trenutni_korisnik),
+):
+    event = session.get(Event, event_id)
+
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event ne postoji.",
+        )
+
+    if not korisnik_je_vlasnik_ili_admin(korisnik, event):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nemate dozvolu za uklanjanje ucesnika.",
+        )
+
+    ucesce = session.exec(
+        select(EventUcesnik).where(
+            EventUcesnik.event_id == event_id,
+            EventUcesnik.korisnik_id == korisnik_id,
+        )
+    ).first()
+
+    if ucesce is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ucesnik ne postoji na ovom eventu.",
+        )
+
+    session.delete(ucesce)
+    session.commit()
+
+    return {"detail": "Ucesnik je uklonjen sa eventa."}
+
+
 @router.delete("/{event_id}")
 def deaktiviraj_event(
     event_id: int,

@@ -6,8 +6,12 @@ import { register, login } from '../../lib/api';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [jezik, setJezik] = useState('BS');
-  
+  const [jezik, setJezik] = useState(() => {
+    if (typeof window === 'undefined') return 'BS';
+    return localStorage.getItem('izabraniJezik') ?? 'BS';
+  });
+  const [uloga, setUloga] = useState<'ORGANIZATOR' | 'GOST'>('GOST');
+
   const [ime, setIme] = useState('');
   const [email, setEmail] = useState('');
   const [lozinka, setLozinka] = useState('');
@@ -15,11 +19,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const sacuvaniJezik = localStorage.getItem('izabraniJezik');
-    if (sacuvaniJezik) {
-      setJezik(sacuvaniJezik);
-    }
-
     const provjeriJezik = () => {
       const trenutni = localStorage.getItem('izabraniJezik');
       if (trenutni) setJezik(trenutni);
@@ -47,13 +46,13 @@ export default function RegisterPage() {
     }
 
     try {
-      await register(ime, email, lozinka, 'ORGANIZATOR', jezik.toLowerCase());
+      await register(ime, email, lozinka, uloga, jezik.toLowerCase());
       const authData = await login(email, lozinka);
       localStorage.setItem('token', authData.access_token);
       router.push('/dashboard');
-    } catch (err: any) {
-      const kodGreske = err.message;
-      if (t[kodGreske]) {
+    } catch (err: unknown) {
+      const kodGreske = err instanceof Error ? err.message : '';
+      if (kodGreske && t[kodGreske]) {
         setGreska(t[kodGreske]);
       } else {
         setGreska(jezik === 'BS' ? 'Registracija neuspješna.' : 'Registration failed.');
@@ -65,10 +64,13 @@ export default function RegisterPage() {
 
   const prevodi: Record<string, Record<string, string>> = {
     BS: {
-      podnaslov: "Kreirajte račun za organizaciju događaja.",
+      podnaslov: "Kreirajte račun i odaberite ulogu.",
       placeholderIme: "Ime i prezime",
       placeholderEmail: "Email",
       placeholderLozinka: "Lozinka",
+      placeholderUloga: "Odaberi ulogu",
+      gost: "Gost",
+      organizator: "Organizator",
       dugme: "Registruj se",
       pitanje: "Veća imaš račun?",
       akcija: "Prijavi se",
@@ -77,10 +79,13 @@ export default function RegisterPage() {
       ERR_ADMIN_PUBLIC_REGISTER: "Admin nalog se ne može javno registrovati."
     },
     EN: {
-      podnaslov: "Create an account to organize events.",
+      podnaslov: "Create an account and choose your role.",
       placeholderIme: "Full name",
       placeholderEmail: "Email",
       placeholderLozinka: "Password",
+      placeholderUloga: "Choose role",
+      gost: "Guest",
+      organizator: "Organizer",
       dugme: "Register",
       pitanje: "Already have an account?",
       akcija: "Sign in",
@@ -141,7 +146,16 @@ export default function RegisterPage() {
             onChange={(e) => setLozinka(e.target.value)}
             className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" 
           />
-          
+          <select
+            value={uloga}
+            onChange={(e) => setUloga(e.target.value as 'ORGANIZATOR' | 'GOST')}
+            className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white"
+            aria-label={t.placeholderUloga}
+          >
+            <option value="GOST">{t.gost}</option>
+            <option value="ORGANIZATOR">{t.organizator}</option>
+          </select>
+
           <button 
             type="submit" 
             disabled={loading}

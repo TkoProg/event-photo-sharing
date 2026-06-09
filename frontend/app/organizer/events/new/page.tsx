@@ -2,11 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { kreirajEvent } from '../../../../lib/api'; // Uvozimo funkciju iz api.ts
+import { getTrenutniKorisnik, kreirajEvent } from '../../../../lib/api'; // Uvozimo funkciju iz api.ts
 
 export default function NewEventPage() {
   const router = useRouter();
   const [jezik, setJezik] = useState('BS');
+  const [provjeraUloge, setProvjeraUloge] = useState(true);
+  const [mozeKreiratiEvent, setMozeKreiratiEvent] = useState(false);
 
   // Stanja za formu
   const [naziv, setNaziv] = useState('');
@@ -20,8 +22,10 @@ export default function NewEventPage() {
 
   useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
+    let animationFrameId: number | null = null;
+
     if (sacuvaniJezik) {
-      setJezik(sacuvaniJezik);
+      animationFrameId = window.requestAnimationFrame(() => setJezik(sacuvaniJezik));
     }
 
     const provjeriJezik = () => {
@@ -30,8 +34,24 @@ export default function NewEventPage() {
     };
 
     window.addEventListener('storage', provjeriJezik);
-    return () => window.removeEventListener('storage', provjeriJezik);
-  }, []);
+
+    getTrenutniKorisnik()
+      .then((korisnik) => {
+        if (korisnik.uloga !== 'ORGANIZATOR') {
+          router.replace('/organizer/events');
+          return;
+        }
+
+        setMozeKreiratiEvent(true);
+      })
+      .catch(() => router.replace('/dashboard'))
+      .finally(() => setProvjeraUloge(false));
+
+    return () => {
+      window.removeEventListener('storage', provjeriJezik);
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [router]);
 
   const promijeniJezik = (noviJezik: string) => {
     setJezik(noviJezik);
@@ -58,8 +78,8 @@ export default function NewEventPage() {
       
       // Vraćamo korisnika na listu događaja gdje će vidjeti novi event
       router.push('/organizer/events');
-    } catch (err: any) {
-      setGreska(err.message || 'Greška pri kreiranju događaja.');
+    } catch (err: unknown) {
+      setGreska(err instanceof Error ? err.message : 'Greška pri kreiranju događaja.');
     } finally {
       setLoading(false);
     }
@@ -89,6 +109,16 @@ export default function NewEventPage() {
   };
 
   const t = jezik === 'BS' ? prevodi.BS : prevodi.EN;
+
+  if (provjeraUloge || !mozeKreiratiEvent) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans">
+        <div className="text-center text-gray-500 text-sm font-light animate-pulse">
+          {jezik === 'BS' ? 'Provjera dozvola...' : 'Checking permissions...'}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center relative overflow-hidden font-sans py-20">

@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getAdminStats, getAdminUsers, toggleBlokirajKorisnika, ApiAdminStats, ApiKorisnik } from '../../lib/api';
+import { deleteAdminUser, getAdminStats, getAdminUsers, getTrenutniKorisnik, toggleBlokirajKorisnika, ApiAdminStats, ApiKorisnik } from '../../lib/api';
 
 interface PrevodStranice {
   naslov: string;
@@ -16,11 +16,13 @@ interface PrevodStranice {
   kolonaAkcija: string;
   dugmeBlokiraj: string;
   dugmeDeblokiraj: string;
+  dugmeObrisi: string;
+  potvrdiBrisanje: string;
   znackaAktivan: string;
   znackaBlokiran: string;
   nazad: string;
   ucitavanje: string;
-  [key: string]: any;
+  [key: string]: string;
 }
 
 const PREVODI_PODACI: Record<string, PrevodStranice> = {
@@ -37,12 +39,15 @@ const PREVODI_PODACI: Record<string, PrevodStranice> = {
     kolonaAkcija: "Akcija",
     dugmeBlokiraj: "Blokiraj",
     dugmeDeblokiraj: "Deblokiraj",
+    dugmeObrisi: "Obriši",
+    potvrdiBrisanje: "Da li sigurno želiš trajno obrisati ovog korisnika i sve njegove podatke?",
     znackaAktivan: "AKTIVAN",
     znackaBlokiran: "BLOKIRAN",
     nazad: "← Nazad na Dashboard",
     ucitavanje: "Učitavanje admin podataka...",
     ERR_UNAUTHORIZED_ACTION: "Nemate ovlaštenje za pristup admin panelu.",
     ERR_CANNOT_BLOCK_SELF: "Ne možete blokirati sami sebe.",
+    ERR_CANNOT_DELETE_SELF: "Ne možete obrisati sami sebe.",
     ERR_USER_NOT_FOUND: "Korisnik ne postoji na sistemu."
   },
   EN: {
@@ -58,12 +63,15 @@ const PREVODI_PODACI: Record<string, PrevodStranice> = {
     kolonaAkcija: "Action",
     dugmeBlokiraj: "Block",
     dugmeDeblokiraj: "Unblock",
+    dugmeObrisi: "Delete",
+    potvrdiBrisanje: "Are you sure you want to permanently delete this user and all their data?",
     znackaAktivan: "ACTIVE",
     znackaBlokiran: "BLOCKED",
     nazad: "← Back to Dashboard",
     ucitavanje: "Loading admin data...",
     ERR_UNAUTHORIZED_ACTION: "You do not have authorization to access the admin panel.",
     ERR_CANNOT_BLOCK_SELF: "You cannot block yourself.",
+    ERR_CANNOT_DELETE_SELF: "You cannot delete yourself.",
     ERR_USER_NOT_FOUND: "User does not exist on the system."
   }
 };
@@ -72,6 +80,8 @@ export default function AdminDashboardPage() {
   const [jezik, setJezik] = useState('BS');
   const [stats, setStats] = useState<ApiAdminStats | null>(null);
   const [korisnici, setKorisnici] = useState<ApiKorisnik[]>([]);
+  const [trenutniAdminId, setTrenutniAdminId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [greska, setGreska] = useState('');
 
@@ -82,15 +92,17 @@ export default function AdminDashboardPage() {
       setLoading(true);
       setGreska('');
       
-      const [statsPodaci, korisniciPodaci] = await Promise.all([
+      const [statsPodaci, korisniciPodaci, trenutniKorisnik] = await Promise.all([
         getAdminStats(),
-        getAdminUsers()
+        getAdminUsers(),
+        getTrenutniKorisnik()
       ]);
       
       setStats(statsPodaci);
       setKorisnici(korisniciPodaci);
-    } catch (err: any) {
-      const kodGreske = err.message;
+      setTrenutniAdminId(trenutniKorisnik.id);
+    } catch (err: unknown) {
+      const kodGreske = err instanceof Error ? err.message : '';
       if (kodGreske && t[kodGreske]) {
         setGreska(t[kodGreske]);
       } else {
@@ -103,7 +115,10 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
-    if (sacuvaniJezik) setJezik(sacuvaniJezik);
+    const animationFrameId = window.requestAnimationFrame(() => {
+      if (sacuvaniJezik) setJezik(sacuvaniJezik);
+      ucitajAdminPodatke();
+    });
 
     const provjeriJezik = () => {
       const trenutni = localStorage.getItem('izabraniJezik');
@@ -111,9 +126,11 @@ export default function AdminDashboardPage() {
     };
 
     window.addEventListener('storage', provjeriJezik);
-    ucitajAdminPodatke();
 
-    return () => window.removeEventListener('storage', provjeriJezik);
+    return () => {
+      window.removeEventListener('storage', provjeriJezik);
+      window.cancelAnimationFrame(animationFrameId);
+    };
   }, [jezik]);
 
   const handleBlockToggle = async (korisnikId: number, trenutnoBlokiran: boolean) => {
@@ -121,13 +138,39 @@ export default function AdminDashboardPage() {
       await toggleBlokirajKorisnika(korisnikId, !trenutnoBlokiran);
       const azuriraniKorisnici = await getAdminUsers();
       setKorisnici(azuriraniKorisnici);
-    } catch (err: any) {
-      const kodGreske = err.message;
+    } catch (err: unknown) {
+      const kodGreske = err instanceof Error ? err.message : '';
       if (kodGreske && t[kodGreske]) {
         alert(t[kodGreske]);
       } else {
         alert(jezik === 'BS' ? 'Greška pri promjeni statusa korisnika.' : 'Error changing user status.');
       }
+    }
+  };
+
+  const handleDeleteUser = async (korisnikId: number) => {
+    if (!window.confirm(t.potvrdiBrisanje)) return;
+
+    try {
+      setDeletingId(korisnikId);
+      await deleteAdminUser(korisnikId);
+
+      const [azuriraniStats, azuriraniKorisnici] = await Promise.all([
+        getAdminStats(),
+        getAdminUsers()
+      ]);
+
+      setStats(azuriraniStats);
+      setKorisnici(azuriraniKorisnici);
+    } catch (err: unknown) {
+      const kodGreske = err instanceof Error ? err.message : '';
+      if (kodGreske && t[kodGreske]) {
+        alert(t[kodGreske]);
+      } else {
+        alert(kodGreske || (jezik === 'BS' ? 'Greška pri brisanju korisnika.' : 'Error deleting user.'));
+      }
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -185,9 +228,9 @@ export default function AdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 text-sm font-light">
-                    {korisnici.map((user: any) => {
-                      // Eksplicitno stavljamo : any kako TypeScript ne bi pravio problem oko polja 'blokiran'
+                    {korisnici.map((user: ApiKorisnik) => {
                       const isBlokiran = !!user.blokiran;
+                      const isCurrentAdmin = trenutniAdminId === user.id;
 
                       return (
                         <tr key={user.id} className="hover:bg-white/[0.02] transition-colors">
@@ -206,17 +249,28 @@ export default function AdminDashboardPage() {
                           <td className="py-4 text-gray-400">{user.email}</td>
                           <td className="py-4 text-gray-400 font-mono text-xs">{user.uloga}</td>
                           <td className="py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleBlockToggle(user.id, isBlokiran)}
-                              className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-all ${
-                                isBlokiran
-                                  ? 'bg-green-600 text-white hover:bg-green-700'
-                                  : 'bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600 hover:text-white'
-                              }`}
-                            >
-                              {isBlokiran ? t.dugmeDeblokiraj : t.dugmeBlokiraj}
-                            </button>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                disabled={isCurrentAdmin}
+                                onClick={() => handleBlockToggle(user.id, isBlokiran)}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                                  isBlokiran
+                                    ? 'bg-green-600 text-white hover:bg-green-700'
+                                    : 'bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600 hover:text-white'
+                                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                              >
+                                {isBlokiran ? t.dugmeDeblokiraj : t.dugmeBlokiraj}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isCurrentAdmin || deletingId === user.id}
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="px-4 py-1.5 text-xs font-bold rounded-xl bg-red-950/40 text-red-300 border border-red-500/40 hover:bg-red-700 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {deletingId === user.id ? '...' : t.dugmeObrisi}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

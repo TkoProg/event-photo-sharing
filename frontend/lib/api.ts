@@ -82,7 +82,7 @@ export interface ApiAlbum {
   naziv: string;
   opis: string;
   tip: 'OBICNI' | 'FINALNI';
-  share_code: string;
+  share_code: string | null;
   javno: boolean;
   broj_fotografija: number;
 }

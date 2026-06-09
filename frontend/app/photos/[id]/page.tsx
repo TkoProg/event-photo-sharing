@@ -13,7 +13,7 @@ import {
   ApiFotografija,
   ApiKomentar, getTrenutniKorisnik,
   deleteKomentar, ApiKorisnik, getUcesnici,
-  dodajTag, deleteTag
+  dodajTag, deleteTag, ApiTag
 } from '@/lib/api';
 
 const PREVODI = {
@@ -79,31 +79,22 @@ export default function PhotoDetail() {
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [uloga, setUloga] = useState<string | null>(null);
+  const [korisnikId, setKorisnikId] = useState<number | null>(null);
+  const [trenutniKorisnik, setTrenutniKorisnik] = useState<ApiKorisnik | null>(null);
 
   useEffect(() => {
     getTrenutniKorisnik()
-      .then(k => setUloga(k.uloga))
+      .then(k => {
+        setUloga(k.uloga);
+        setKorisnikId(k.id);
+        setTrenutniKorisnik(k);
+      })
       .catch(() => setUloga('GOST'));
   }, []);
 
-  const jeGost = uloga === 'GOST';
   const jeOrganizator = uloga === 'ORGANIZATOR';
   const jeAdmin = uloga === 'ADMIN';
   const mozeSve = jeOrganizator || jeAdmin;
-
-  useEffect(() => {
-    getTrenutniKorisnik()
-      .then(k => setUloga(k.uloga))
-      .catch(() => setUloga('GOST'));
-  }, []);
-
-  const [korisnikId, setKorisnikId] = useState<number | null>(null);
-
-  useEffect(() => {
-    getTrenutniKorisnik()
-      .then(k => { setUloga(k.uloga); setKorisnikId(k.id); })
-      .catch(() => setUloga('GOST'));
-  }, []);
 
   // ─── STRELICE I NAVIGACIJA LOGIKA (Dodano iz koda 1) ────────────────────────
   const [photosList, setPhotosList] = useState<ApiFotografija[]>([]);
@@ -117,7 +108,7 @@ export default function PhotoDetail() {
   const [trazeniPojam, setTrazeniPojam] = useState('');
   const [fokusiraniIndex, setFokusiraniIndex] = useState(-1);
   const [prikaziPrijedloge, setPrikaziPrijedloge] = useState(false);
-  const [tagovi, setTagovi] = useState<any[]>([]); // Ovdje čuvamo tagove sa backenda
+  const [tagovi, setTagovi] = useState<ApiTag[]>([]);
 
   // Jezik provjera
   useEffect(() => {
@@ -143,7 +134,23 @@ export default function PhotoDetail() {
       .then(([foto, kom]) => {
         setPhoto(foto);
         setKomentari(kom);
-        getUcesnici(foto.event_id).then(setUcesnici).catch(console.error);
+
+        const dodajTrenutnogKorisnika = (lista: ApiKorisnik[]) => {
+          if (!trenutniKorisnik || lista.some(u => u.id === trenutniKorisnik.id)) {
+            return lista;
+          }
+
+          return [trenutniKorisnik, ...lista];
+        };
+
+        if (mozeSve) {
+          getUcesnici(foto.event_id)
+            .then(lista => setUcesnici(dodajTrenutnogKorisnika(lista)))
+            .catch(() => setUcesnici(dodajTrenutnogKorisnika([])));
+        } else {
+          setUcesnici(dodajTrenutnogKorisnika([]));
+        }
+
         setTagovi(foto.tagovi || []);
         return getFotografije(foto.event_id);
       })
@@ -156,9 +163,10 @@ export default function PhotoDetail() {
       })
       .catch(() => setError(PREVODI[jezik === 'BS' ? 'BS' : 'EN'].greska))
       .finally(() => setLoading(false));
-  }, [id, jezik]);
+  }, [id, jezik, mozeSve, trenutniKorisnik]);
 
   const t = jezik === 'BS' ? PREVODI.BS : PREVODI.EN;
+  const mozeObrisatiSliku = Boolean(photo && (mozeSve || photo.korisnik_id === korisnikId));
 
   // Funkcija za prebacivanje slika
   const navigateTo = useCallback((index: number) => {
@@ -319,7 +327,7 @@ const handleAddTag = async (e: React.FormEvent) => {
         </button>
 
         {/* Desno — brisanje */}
-        {mozeSve && (
+        {mozeObrisatiSliku && (
           <button
             onClick={() => setShowDeleteModal(true)}
             className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-4 py-2 rounded-xl text-sm font-bold transition-all"
@@ -406,11 +414,27 @@ const handleAddTag = async (e: React.FormEvent) => {
                 tagovi.map(tag => {
                   // Backend vraća samo ID osobe, pa tražimo njeno ime u nizu učesnika
                   const ucesnik = ucesnici.find(u => u.id === tag.oznaceni_korisnik_id);
-                  const ime = ucesnik ? ucesnik.ime : `Korisnik`;
+                  const ime = tag.oznaceni_korisnik_ime || (ucesnik ? ucesnik.ime : `Korisnik`);
+                  const mozeObrisatiTag = Boolean(
+                    mozeSve
+                    || photo.korisnik_id === korisnikId
+                    || tag.oznacio_korisnik_id === korisnikId
+                    || tag.oznaceni_korisnik_id === korisnikId
+                  );
 
                   return (
                     <span key={tag.id} className="bg-transparent border border-white/30 text-xs px-3 py-1.5 rounded-lg text-white font-semibold flex items-center gap-2">
                       @{ime}
+                      {mozeObrisatiTag && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tag.id)}
+                          className="text-gray-500 hover:text-red-400 transition-colors"
+                          aria-label={`Obrisi tag ${ime}`}
+                        >
+                          ✕
+                        </button>
+                      )}
                     </span>
                   );
                 })

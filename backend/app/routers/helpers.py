@@ -9,10 +9,10 @@ from app.models.fotografija import Fotografija
 from app.models.komentar import Komentar
 from app.models.korisnik import Korisnik, UlogaKorisnika
 from app.models.lajk import Lajk
-from app.schemas.album import AlbumDetailResponse, AlbumResponse
-from app.schemas.fotografija import FotografijaResponse
-from app.services.upload_service import napravi_public_url
 from app.models.tag import Tag
+from app.schemas.album import AlbumDetailResponse, AlbumResponse
+from app.schemas.fotografija import FotografijaResponse, TagResponse
+from app.services.upload_service import napravi_public_url
 
 
 def pronadji_event_ili_greska(session: Session, event_id: int) -> Event:
@@ -101,19 +101,24 @@ def fotografija_u_response(
 
         liked_by_me = postojeci_lajk is not None
 
-    tagovi_baza = session.exec(
+    tagovi = session.exec(
         select(Tag).where(Tag.fotografija_id == fotografija.id)
     ).all()
 
-    tagovi_sigurno = []
-    for t in tagovi_baza:
-        tagovi_sigurno.append({
-            "id": t.id,
-            "fotografija_id": t.fotografija_id,
-            "oznaceni_korisnik_id": t.oznaceni_korisnik_id,
-            "oznacio_korisnik_id": t.oznacio_korisnik_id,
-            "kreiran_at": t.kreiran_at
-        })
+    tag_responses = []
+
+    for tag in tagovi:
+        oznaceni = session.get(Korisnik, tag.oznaceni_korisnik_id)
+        tag_responses.append(
+            TagResponse(
+                id=tag.id,
+                fotografija_id=tag.fotografija_id,
+                oznaceni_korisnik_id=tag.oznaceni_korisnik_id,
+                oznacio_korisnik_id=tag.oznacio_korisnik_id,
+                kreiran_at=tag.kreiran_at,
+                oznaceni_korisnik_ime=oznaceni.ime if oznaceni is not None else None,
+            )
+        )
 
     return FotografijaResponse(
         id=fotografija.id,
@@ -125,7 +130,7 @@ def fotografija_u_response(
         broj_komentara=broj_komentara(session, fotografija.id),
         favorit=fotografija.favorit,
         liked_by_me=liked_by_me,
-        tagovi=tagovi_sigurno,
+        tagovi=tag_responses,
     )
 
 
@@ -199,4 +204,3 @@ def provjeri_finalni_album(album: Album):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Samo finalni album se moze objaviti.",
         )
-

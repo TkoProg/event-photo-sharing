@@ -6,7 +6,7 @@ import {
   getEvent, updateEvent, deleteEvent, deleteAlbum,
   getFotografije, toggleFavorit, objaviAlbum,
   getAlbumi, dodajFotografijaUAlbum, getTrenutniKorisnik,
-  ApiEvent, ApiFotografija, ApiAlbum, getUcesnici, ApiKorisnik
+  ApiEvent, ApiFotografija, ApiAlbum, getUcesnici, ApiKorisnik, ukloniUcesnika
 } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,6 +30,8 @@ const PREVODI = {
     odustani: 'Odustani', mojiAlbumi: 'Moji albumi', kreirajAlbum: '+ Kreiraj album',
     favoriti: '⭐ Favoriti', fotografija: 'fotografija', albumPrazan: 'Nemaš još albuma.',
     ucesniciNaslov: 'Učesnici događaja', prijavljeni: 'Prijavljeni',
+    ukloniUcesnika: 'Ukloni',
+    ucesnikUklonjen: 'Učesnik je uklonjen.',
     simuliraj: '+ Simuliraj login učesnika', josNiko: 'Još niko se nije prijavio.',
     osnovneInfo: 'Osnovne informacije', osnovneInfoOpis: 'Ažurirajte ključne detalje.',
     nazivDogadjaja: 'Naziv događaja', datum: 'Datum', lokacija: 'Lokacija', opis: 'Opis',
@@ -54,6 +56,8 @@ const PREVODI = {
     odustani: 'Cancel', mojiAlbumi: 'My albums', kreirajAlbum: '+ Create album',
     favoriti: '⭐ Favorites', fotografija: 'photos', albumPrazan: "No albums yet.",
     ucesniciNaslov: 'Event participants', prijavljeni: 'Registered',
+    ukloniUcesnika: 'Remove',
+    ucesnikUklonjen: 'Participant removed.',
     simuliraj: '+ Simulate login', josNiko: 'Nobody joined yet.',
     osnovneInfo: 'Basic information', osnovneInfoOpis: 'Update key details.',
     nazivDogadjaja: 'Event name', datum: 'Date', lokacija: 'Location', opis: 'Description',
@@ -160,18 +164,36 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
   const { message: toastMsg, show: showToast } = useToast();
 
   useEffect(() => {
-    Promise.all([
-      getFotografije(Number(eventId)),
-      getAlbumi(Number(eventId)),
-      getUcesnici(Number(eventId)),
-    ]).then(([f, a, u]) => { 
-        setPhotos(f); 
-        setAlbums(a); 
-        setUcesnici(u);
-    })
-      .catch(() => showToast(t.greska))
-      .finally(() => setLoading(false));
-  }, [eventId]);
+    let cancelled = false;
+
+    const ucitajPodatke = async () => {
+      try {
+        const f = await getFotografije(Number(eventId));
+        if (cancelled) return;
+        setPhotos(f);
+
+        const a = await getAlbumi(Number(eventId));
+        if (cancelled) return;
+        setAlbums(a);
+
+        // Gosti ne trebaju listu ucesnika za upravljanje/tag pretragu; ne blokiramo prikaz fotografija zbog toga.
+        if (mozeSve) {
+          const u = await getUcesnici(Number(eventId));
+          if (cancelled) return;
+          setUcesnici(u);
+        }
+      } catch {
+        if (!cancelled) showToast(t.greska);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    ucitajPodatke();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, mozeSve]);
 
   useEffect(() => {
     const handle = (e: MouseEvent) => {
@@ -209,7 +231,8 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
     if (foto.tagovi && foto.tagovi.length > 0) {
       const imaPoklapanje = foto.tagovi.some(tag => {
         const ucesnik = ucesnici.find(u => u.id === tag.oznaceni_korisnik_id);
-        return ucesnik && ucesnik.ime.toLowerCase().includes(term);
+        const ime = tag.oznaceni_korisnik_ime || ucesnik?.ime || '';
+        return ime.toLowerCase().includes(term);
       });
       if (imaPoklapanje) return true;
     }
@@ -258,13 +281,10 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
               </Link>
 
               <div className="flex gap-2 mt-3">
-                {/* Dodaj u album — samo organizator/admin */}
-                {mozeSve && (
-                  <button onClick={() => setSelectedPhotoId(foto.id === selectedPhotoId ? null : foto.id)}
-                    className="flex-1 bg-white/10 hover:bg-white/20 py-2 rounded-lg text-sm font-semibold transition-all">
-                    {t.dodajUAlbum}
-                  </button>
-                )}
+                <button onClick={() => setSelectedPhotoId(foto.id === selectedPhotoId ? null : foto.id)}
+                  className="flex-1 bg-white/10 hover:bg-white/20 py-2 rounded-lg text-sm font-semibold transition-all">
+                  {t.dodajUAlbum}
+                </button>
                 {/* Favorit — samo organizator/admin */}
                 {mozeSve && (
                   <button onClick={() => handleFavorit(foto)}
@@ -320,7 +340,7 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
 }
 
 // ─── Tab: Albums ──────────────────────────────────────────────────────────────
-function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: T; mozeSve: boolean;jeAdmin: boolean; }) {
+function AlbumsTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: boolean; }) {
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const { message: toastMsg, show: showToast } = useToast();
@@ -357,11 +377,9 @@ function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: T; mo
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-bold">{t.mojiAlbumi}</h2>
-        {mozeSve && (
-          <Link href={`/events/${eventId}/albums/create`} className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all active:scale-95">
-            {t.kreirajAlbum}
-          </Link>
-        )}
+        <Link href={`/events/${eventId}/albums/create`} className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all active:scale-95">
+          {t.kreirajAlbum}
+        </Link>
       </div>
 
       {allAlbums.length === 1 && favCount === 0 ? (
@@ -376,10 +394,12 @@ function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: T; mo
                 <p className="text-xs text-gray-500 mt-2">{album.broj_fotografija} {t.fotografija}</p>
               </Link>
 
-              {/* Brisanje — samo admin (Ovo možemo ostaviti) */}
-              {jeAdmin && album.id !== 'favorites' && (
+              {mozeSve && album.id !== 'favorites' && (
                 <button
                   onClick={async () => {
+                    const potvrda = window.confirm('Obrisati album? Slike u albumu neće biti obrisane.');
+                    if (!potvrda) return;
+
                     try {
                       await deleteAlbum(Number(album.id));
                       setAlbums(prev => prev.filter(a => a.id !== album.id));
@@ -429,13 +449,37 @@ function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: T; mo
 function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
   const [participants, setParticipants] = useState<ApiKorisnik[]>([]);
   const [loading, setLoading] = useState(true);
+  const [removingId, setRemovingId] = useState<number | null>(null);
+  const { message: toastMsg, show: showToast } = useToast();
 
   useEffect(() => {
     getUcesnici(Number(eventId))
       .then(setParticipants)
-      .catch(() => {})
+      .catch(() => showToast(t.greska))
       .finally(() => setLoading(false));
   }, [eventId]);
+
+  const handleRemoveParticipant = async (participantId: number) => {
+    setRemovingId(participantId);
+
+    try {
+      await ukloniUcesnika(Number(eventId), participantId);
+      setParticipants(prev => prev.filter(p => p.id !== participantId));
+      showToast(t.ucesnikUklonjen);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t.greska;
+
+      if (message === "Ucesnik ne postoji na ovom eventu.") {
+        setParticipants(prev => prev.filter(p => p.id !== participantId));
+        showToast(t.ucesnikUklonjen);
+        return;
+      }
+
+      showToast(message || t.greska);
+    } finally {
+      setRemovingId(null);
+    }
+  };
 
   if (loading) return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -474,10 +518,19 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
                   {p.uloga}
                 </span>
               </div>
+              <button
+                type="button"
+                disabled={removingId === p.id}
+                onClick={() => handleRemoveParticipant(p.id)}
+                className="text-xs px-3 py-1.5 rounded-full border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {removingId === p.id ? '...' : t.ukloniUcesnika}
+              </button>
             </div>
           ))
         )}
       </div>
+      <Toast message={toastMsg} />
     </div>
   );
 }
@@ -602,7 +655,6 @@ export default function EventDashboard() {
   const [eventLoading, setEventLoading] = useState(true);
   const [jezik, setJezik] = useState('BS');
   const uloga = useKorisnik();
-  const jeGost = uloga === 'GOST';
   const jeOrganizator = uloga === 'ORGANIZATOR';
   const jeAdmin = uloga === 'ADMIN';
   const mozeSve = jeOrganizator || jeAdmin;
@@ -631,7 +683,6 @@ export default function EventDashboard() {
     .filter(tab => {
       if (!mozeSve && tab.id === 'settings') return false;
       if (!mozeSve && tab.id === 'participants') return false;
-      if (!mozeSve && tab.id === 'albums') return false;
       return true;
     })
     .map(tab => ({ id: tab.id, name: jezik === 'BS' ? tab.bs : tab.en }));
@@ -662,7 +713,7 @@ export default function EventDashboard() {
 
         <div className="mt-6 min-h-[400px] w-full">
           {activeTab === 'photos' && <PhotosTab eventId={id} t={t} mozeSve={mozeSve} />}
-          {activeTab === 'albums' && mozeSve && <AlbumsTab eventId={id} t={t} mozeSve={mozeSve} jeAdmin={jeAdmin} />}
+          {activeTab === 'albums' && <AlbumsTab eventId={id} t={t} mozeSve={mozeSve} />}
           {activeTab === 'participants' && mozeSve && <ParticipantsTab eventId={id} t={t} />}
           {activeTab === 'settings' && mozeSve && <SettingsTab eventId={id} t={t} />}
         </div>

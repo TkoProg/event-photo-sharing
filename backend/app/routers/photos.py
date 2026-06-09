@@ -287,6 +287,7 @@ def taguj_korisnika(
             oznaceni_korisnik_id=postojeci.oznaceni_korisnik_id,
             oznacio_korisnik_id=postojeci.oznacio_korisnik_id,
             kreiran_at=postojeci.kreiran_at,
+            oznaceni_korisnik_ime=oznaceni.ime,
         )
 
     tag = Tag(
@@ -305,7 +306,57 @@ def taguj_korisnika(
         oznaceni_korisnik_id=tag.oznaceni_korisnik_id,
         oznacio_korisnik_id=tag.oznacio_korisnik_id,
         kreiran_at=tag.kreiran_at,
+        oznaceni_korisnik_ime=oznaceni.ime,
     )
+
+
+@router.delete("/tags/{tag_id}")
+def obrisi_tag(
+    tag_id: int,
+    session: Session = Depends(get_session),
+    korisnik: Korisnik = Depends(get_trenutni_korisnik),
+):
+    tag = session.get(Tag, tag_id)
+
+    if tag is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tag ne postoji.",
+        )
+
+    fotografija = session.get(Fotografija, tag.fotografija_id)
+
+    if fotografija is None or fotografija.obrisana:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Fotografija ne postoji.",
+        )
+
+    event = session.get(Event, fotografija.event_id)
+
+    if event is None or not korisnik_ima_pristup_eventu(session, korisnik, event):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nemate pristup ovoj fotografiji.",
+        )
+
+    moze_obrisati = (
+        korisnik_moze_urediti_event(korisnik, event)
+        or fotografija.korisnik_id == korisnik.id
+        or tag.oznacio_korisnik_id == korisnik.id
+        or tag.oznaceni_korisnik_id == korisnik.id
+    )
+
+    if not moze_obrisati:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nemate dozvolu za ovu akciju.",
+        )
+
+    session.delete(tag)
+    session.commit()
+
+    return {"detail": "Tag je obrisan."}
 
 
 @router.get("/users/{korisnik_id}/tagged-photos", response_model=list[FotografijaResponse])
@@ -345,4 +396,3 @@ def tagovane_fotografije(
             rezultat.append(fotografija_u_response(session, fotografija, korisnik))
 
     return rezultat
-

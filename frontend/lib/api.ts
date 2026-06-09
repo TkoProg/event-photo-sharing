@@ -14,7 +14,7 @@ export interface ApiKorisnik {
   email: string;
   uloga: 'ADMIN' | 'ORGANIZATOR' | 'GOST';
   jezik: string;
-  aktivan: boolean; // <-- PROMJENA OVDJE
+  blokiran: boolean;
 }
 
 export interface ApiEvent {
@@ -30,6 +30,15 @@ export interface ApiEvent {
   broj_ucesnika: number;
 }
 
+export interface ApiTag {
+  id: number;
+  fotografija_id: number;
+  oznaceni_korisnik_id: number;
+  oznacio_korisnik_id: number;
+  kreiran_at: string;
+  oznaceni_korisnik_ime?: string | null;
+}
+
 export interface ApiFotografija {
   id: number;
   event_id: number;
@@ -40,7 +49,7 @@ export interface ApiFotografija {
   broj_komentara: number;
   favorit: boolean;
   liked_by_me: boolean;
-  tagovi?: any[];
+  tagovi?: ApiTag[];
 }
 
 export async function getUcesnici(eventId: number): Promise<ApiKorisnik[]> {
@@ -48,6 +57,14 @@ export async function getUcesnici(eventId: number): Promise<ApiKorisnik[]> {
     headers: authHeaders() 
   });
   return handleResponse(res);
+}
+
+export async function ukloniUcesnika(eventId: number, korisnikId: number): Promise<void> {
+  const res = await fetch(`${BASE_URL}/events/${eventId}/participants/${korisnikId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  await handleResponse<{ detail: string }>(res);
 }
 
 export interface ApiKomentar {
@@ -339,14 +356,7 @@ export async function register(ime: string, email: string, lozinka: string, ulog
   return handleResponse(res);
 }
 
-export async function lgin(email: string, lozinka: string): Promise<{ access_token: string }> {
-  const res = await fetch(`${BASE_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, lozinka }),
-  });
-  return handleResponse(res);
-}
+
 
 export function logout(): void {
   
@@ -408,4 +418,12 @@ export async function toggleBlokirajKorisnika(korisnikId: number, blokiran: bool
     body: JSON.stringify({ blokiran }),
   });
   return handleResponse(res);
+}
+
+export async function deleteAdminUser(korisnikId: number): Promise<void> {
+  const res = await fetch(`${BASE_URL}/admin/users/${korisnikId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  await handleResponse<{ detail: string }>(res);
 }

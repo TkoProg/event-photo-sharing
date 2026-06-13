@@ -38,6 +38,7 @@ export default function AlbumDetails() {
 
   const [copied, setCopied] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const handleCopyLink = () => {
     if (album?.share_code) {
@@ -121,11 +122,30 @@ export default function AlbumDetails() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') navigateTo(selectedIndex + 1);
       else if (e.key === 'ArrowLeft') navigateTo(selectedIndex - 1);
-      else if (e.key === 'Escape') setSelectedIndex(null);
+      else if (e.key === 'Escape') {
+        setSelectedIndex(null);
+        setIsPlaying(false);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedIndex, navigateTo]);
+
+  // NOVO: Slideshow tajmer
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isPlaying && photos.length > 0) {
+      if (selectedIndex === null) setSelectedIndex(0);
+      
+      interval = setInterval(() => {
+        setSelectedIndex((trenutni) => {
+          if (trenutni === null) return 0;
+          return (trenutni + 1) % photos.length;
+        });
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, photos.length, selectedIndex]);
 
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const onTouchStart = (e: React.TouchEvent) => setTouchStart(e.targetTouches[0].clientX);
@@ -160,7 +180,15 @@ export default function AlbumDetails() {
       {/* Lightbox */}
         {selectedPhoto && (
           <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center"
-            onClick={() => setSelectedIndex(null)}>
+            onClick={() => { setSelectedIndex(null); setIsPlaying(false); }}>
+            
+            <style>{`
+              @keyframes fadeZoom {
+                0% { opacity: 0; transform: scale(0.96); }
+                100% { opacity: 1; transform: scale(1); }
+              }
+              .animate-fade-zoom { animation: fadeZoom 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+            `}</style>
             <div className="absolute top-4 left-1/2 -translate-x-1/2 text-sm text-gray-400 bg-black/60 px-4 py-1.5 rounded-full">
               {(selectedIndex ?? 0) + 1} / {photos.length}
             </div>
@@ -175,8 +203,7 @@ export default function AlbumDetails() {
             </button>
             <div className="max-w-4xl w-full px-16" onClick={e => e.stopPropagation()}
               onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-              <img src={selectedPhoto.url} className="w-full h-auto max-h-[85vh] object-contain rounded-2xl select-none" alt="Slika" draggable="false" />
-            </div>
+              <img key={selectedPhoto.url} src={selectedPhoto.url} className="w-full h-auto max-h-[85vh] object-contain rounded-2xl select-none shadow-2xl animate-fade-zoom" alt="Slika" draggable="false" />            </div>
             <button onClick={e => { e.stopPropagation(); navigateTo((selectedIndex ?? 0) + 1); }}
               disabled={(selectedIndex ?? 0) >= photos.length - 1}
               className="absolute right-4 bg-white/10 hover:bg-white/20 p-3 rounded-full border border-white/10 text-white transition-all disabled:opacity-0 disabled:pointer-events-none">
@@ -193,18 +220,32 @@ export default function AlbumDetails() {
           </Link>
 
           {/* DESNA STRANA: Akcije za album */}
-          {album && mozeUpravljatiAlbumom && (
+          {album && (
             <div className="flex gap-3">
-              {album.javno ? (
-                <button onClick={handleCopyLink}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${copied ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300'}`}>
-                  {copied ? '✅ Link kopiran!' : '🔗 Kopiraj link'}
+              {/* Slideshow dugme vidljivo svima ako ima slika */}
+              {photos.length > 0 && (
+                <button onClick={() => setIsPlaying(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-white/5 hover:bg-white/15 border border-white/10 text-white transition-all shadow-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                  Slideshow
                 </button>
-              ) : (
-                <button onClick={handlePublish} disabled={publishing}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-white text-black hover:bg-gray-200 transition-all disabled:opacity-50">
-                  {publishing ? 'Objavljivanje...' : '🌐 Objavi album'}
-                </button>
+              )}
+
+              {/* Objavi/Kopiraj vidljivo samo adminima i to NE u Favoritima */}
+              {mozeUpravljatiAlbumom && albumId !== 'favorites' && (
+                album.javno ? (
+                  <button onClick={handleCopyLink}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${copied ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300'}`}>
+                    {copied ? '✅ Link kopiran!' : '🔗 Kopiraj link'}
+                  </button>
+                ) : (
+                  <button onClick={handlePublish} disabled={publishing}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-white text-black hover:bg-gray-200 transition-all disabled:opacity-50">
+                    {publishing ? 'Objavljivanje...' : '🌐 Objavi album'}
+                  </button>
+                )
               )}
             </div>
           )}

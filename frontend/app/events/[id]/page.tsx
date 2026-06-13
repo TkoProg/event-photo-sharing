@@ -8,6 +8,7 @@ import {
   getAlbumi, dodajFotografijaUAlbum, getTrenutniKorisnik,
   ApiEvent, ApiFotografija, ApiAlbum, getUcesnici, ApiKorisnik, ukloniUcesnika
 } from '@/lib/api';
+import { QRCodeSVG } from 'qrcode.react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Participant { id: number; name: string; }
@@ -46,7 +47,11 @@ const PREVODI = {
     izbrisi: 'Sačuvaj', modalOdustani: 'Odustani',
     promjeneSacuvane: 'Promjene sačuvane! ✅', greska: 'Greška. Pokušaj ponovo.',
     lajkova: 'lajkova', uFavoritima: '⭐ Favorit', dodajUFavorite: '☆ Dodaj u favorite',
-    aktivan: 'Aktivan', blokiran: 'Blokiran'
+    aktivan: 'Aktivan', blokiran: 'Blokiran', pristupZaGoste: 'Pristup za goste',
+    pristupOpis: 'Podijelite ovaj kod ili QR sa gostima kako bi ušli u događaj.',
+    pristupniKodNaslov: 'Pristupni kod događaja:',
+    prikaziQR: 'Prikaži QR kod',
+    ulazniceNaslov: 'Ulaznica za događaj'
   },
   EN: {
     nazad: '← My events', dobrodosli: 'Welcome to the event dashboard.',
@@ -72,7 +77,11 @@ const PREVODI = {
     izbrisi: 'Save', modalOdustani: 'Cancel',
     promjeneSacuvane: 'Changes saved! ✅', greska: 'Error. Please try again.',
     lajkova: 'likes', uFavoritima: '⭐ Favorite', dodajUFavorite: '☆ Add to favorites',
-    aktivan: 'Active', blokiran: 'Blocked'
+    aktivan: 'Active', blokiran: 'Blocked', pristupZaGoste: 'Guest access',
+    pristupOpis: 'Share this code or QR with guests so they can join the event.',
+    pristupniKodNaslov: 'Event access code:',
+    prikaziQR: 'Show QR code',
+    ulazniceNaslov: 'Event ticket'
   }
 };
 type T = typeof PREVODI.BS;
@@ -160,6 +169,8 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
+  const [samoMoje, setSamoMoje] = useState(false);
+  const [trenutniKorisnikId, setTrenutniKorisnikId] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { message: toastMsg, show: showToast } = useToast();
 
@@ -181,6 +192,12 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
           const u = await getUcesnici(Number(eventId));
           if (cancelled) return;
           setUcesnici(u);
+        }
+        try {
+          const trenutni = await getTrenutniKorisnik();
+          if (!cancelled) setTrenutniKorisnikId(trenutni.id);
+        } catch {
+          // Ignoriši (ako je neregistrovani gost, ne treba mu ovaj filter)
         }
       } catch {
         if (!cancelled) showToast(t.greska);
@@ -221,13 +238,19 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
   };
 
   const filtered = photos.filter(foto => {
-    if (!searchTerm.trim()) return true;
+    // 1. FILTER: Da li je pritisnuto "Samo moje"?
+    if (samoMoje && trenutniKorisnikId) {
+      const naSlici = foto.tagovi && foto.tagovi.some(tag => tag.oznaceni_korisnik_id === trenutniKorisnikId);
+      if (!naSlici) return false; // Ako nije na slici, odmah je sakrij
+    }
+
+    // 2. FILTER: Pretraga po tekstu
+    if (!searchTerm.trim()) return true; // Ako nema pretrage, prikaži sliku (jer je prošla prvi filter)
+    
     const term = searchTerm.toLowerCase();
 
-    // 1. Da li se pretraga poklapa sa ID-jem slike?
     if (String(foto.id).includes(term)) return true;
 
-    // 2. Da li se pretraga poklapa sa nekim od tagovanih ljudi?
     if (foto.tagovi && foto.tagovi.length > 0) {
       const imaPoklapanje = foto.tagovi.some(tag => {
         const ucesnik = ucesnici.find(u => u.id === tag.oznaceni_korisnik_id);
@@ -251,6 +274,14 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <h2 className="text-2xl font-bold">{t.galerija}</h2>
         <div className="flex w-full md:w-auto gap-3">
+          {/* Dugme "Samo moje" */}
+          {trenutniKorisnikId && (
+            <button onClick={() => setSamoMoje(!samoMoje)}
+              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all border shrink-0 ${samoMoje ? 'bg-[#e60023] border-[#e60023] text-white' : 'bg-[#111] border-white/10 text-gray-300 hover:border-white/30'}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              <span className="hidden sm:inline">{samoMoje ? 'Sve slike' : 'Samo ja'}</span>
+            </button>
+          )}
           <div className="relative flex-1 md:w-64">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
             <input type="text" placeholder={t.pretrazi} value={searchTerm}
@@ -543,6 +574,7 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
   const [saving, setSaving] = useState(false);
   const [saveModal, setSaveModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const { message: toastMsg, show: showToast } = useToast();
 
   useEffect(() => {
@@ -598,6 +630,27 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
         </div>
       </section>
 
+      {/* Pristup za goste */}
+      <section className="space-y-6">
+        <div>
+          <h3 className="text-3xl font-extrabold tracking-tight">{t.pristupZaGoste}</h3>
+          <p className="text-gray-500 text-sm mt-1">{t.pristupOpis}</p>
+        </div>
+        <div className="bg-[#111] p-5 md:p-6 rounded-3xl border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-center sm:text-left">
+            <p className="text-xs text-gray-400 mb-0.5">{t.pristupniKodNaslov}</p>
+            <p className="text-3xl md:text-4xl font-black tracking-widest text-white">{form.kod}</p>
+          </div>
+          <button onClick={() => setShowQR(true)}
+            className="w-full sm:w-auto bg-white text-black px-5 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 text-xs md:text-sm shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="3" height="3"/><rect x="14" y="7" width="3" height="3"/><rect x="7" y="14" width="3" height="3"/><rect x="14" y="14" width="3" height="3"/>
+            </svg>
+            {t.prikaziQR}
+          </button>
+        </div>
+      </section>
+
       <section className="space-y-6">
         <div>
           <h3 className="text-3xl font-extrabold tracking-tight">{t.privatnost}</h3>
@@ -635,6 +688,24 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
           {t.obrisiDogadjaj}
         </button>
       </section>
+
+      {/* QR Modal */}
+      {showQR && form.kod && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowQR(false)}>
+          <div className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/10 flex flex-col items-center max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold mb-4">{t.ulazniceNaslov}</h3>
+            <div className="bg-white p-3 rounded-2xl mb-5 shadow-2xl">
+              <QRCodeSVG value={`${window.location.origin}/join?code=${form.kod}`} size={180} level="H" />
+            </div>
+            <div className="bg-black/50 px-5 py-1.5 rounded-full border border-white/10 mb-6">
+              <span className="font-mono text-lg tracking-widest text-white">{form.kod}</span>
+            </div>
+            <button onClick={() => setShowQR(false)} className="w-full py-2.5 bg-white/10 hover:bg-white/20 rounded-xl font-bold transition-all text-xs">
+              {t.zatvori}
+            </button>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal isOpen={saveModal} title={t.sacuvajNaslov} message={t.sacuvajPitanje} t={t} onClose={() => setSaveModal(false)} onConfirm={handleSave} />
       <ConfirmModal isOpen={deleteModal} title={t.brisanjeNaslov} message={t.brisanjePitanje} t={t} onClose={() => setDeleteModal(false)} onConfirm={handleDelete} />

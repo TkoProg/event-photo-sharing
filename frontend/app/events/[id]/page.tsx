@@ -44,7 +44,7 @@ const PREVODI = {
     dangerOpis: 'Ove akcije su trajne i nepovratne.', obrisiDogadjaj: 'Trajno izbriši događaj',
     sacuvajNaslov: 'Sačuvaj promjene', sacuvajPitanje: 'Da li želiš sačuvati izmjene?',
     brisanjeNaslov: '⚠️ Trajno brisanje', brisanjePitanje: 'Ova akcija briše događaj. Jesi li sigurna?',
-    izbrisi: 'Sačuvaj', modalOdustani: 'Odustani',
+    izbrisi: 'Izbriši', modalOdustani: 'Odustani',
     promjeneSacuvane: 'Promjene sačuvane! ✅', greska: 'Greška. Pokušaj ponovo.',
     lajkova: 'lajkova', uFavoritima: '⭐ Favorit', dodajUFavorite: '☆ Dodaj u favorite',
     aktivan: 'Aktivan', blokiran: 'Blokiran', pristupZaGoste: 'Pristup za goste',
@@ -74,7 +74,7 @@ const PREVODI = {
     dangerOpis: 'These actions are permanent.', obrisiDogadjaj: 'Permanently delete event',
     sacuvajNaslov: 'Save changes', sacuvajPitanje: 'Save your changes?',
     brisanjeNaslov: '⚠️ Delete', brisanjePitanje: 'This will delete the event. Are you sure?',
-    izbrisi: 'Save', modalOdustani: 'Cancel',
+    izbrisi: 'Delete', modalOdustani: 'Cancel',
     promjeneSacuvane: 'Changes saved! ✅', greska: 'Error. Please try again.',
     lajkova: 'likes', uFavoritima: '⭐ Favorite', dodajUFavorite: '☆ Add to favorites',
     aktivan: 'Active', blokiran: 'Blocked', pristupZaGoste: 'Guest access',
@@ -377,6 +377,10 @@ function AlbumsTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: bo
   const { message: toastMsg, show: showToast } = useToast();
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [kopiranId, setKopiranId] = useState<number | string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; albumId: number | null }>({
+  isOpen: false,
+  albumId: null
+});
 
   useEffect(() => {
     getAlbumi(Number(eventId))
@@ -427,15 +431,7 @@ function AlbumsTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: bo
 
               {mozeSve && album.id !== 'favorites' && (
                 <button
-                  onClick={async () => {
-                    const potvrda = window.confirm('Obrisati album? Slike u albumu neće biti obrisane.');
-                    if (!potvrda) return;
-
-                    try {
-                      await deleteAlbum(Number(album.id));
-                      setAlbums(prev => prev.filter(a => a.id !== album.id));
-                    } catch { showToast(t.greska); }
-                  }}
+                  onClick={() => setDeleteModal({ isOpen: true, albumId: Number(album.id) })}
                   className="absolute top-4 right-4 text-red-500 hover:text-red-400 transition-colors"
                 >
                   ✕
@@ -446,32 +442,50 @@ function AlbumsTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: bo
         </div>
       )}
       {/* Share link modal */}
-{shareLink && (
-  <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-    <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full">
-      <h3 className="text-xl font-bold mb-2">🔗 Share link</h3>
-      <p className="text-gray-400 text-sm mb-4">Pošalji ovaj link da drugi mogu vidjeti album:</p>
-      <div className="bg-black p-3 rounded-xl border border-white/10 text-xs text-green-400 break-all mb-6">
-        {shareLink}
-      </div>
-      <div className="flex gap-3">
-        <button
-          onClick={() => { navigator.clipboard.writeText(shareLink); showToast('Link kopiran! 📋'); }}
-          className="flex-1 bg-white text-black py-3 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm"
-        >
-          Kopiraj
-        </button>
-        <button
-          onClick={() => setShareLink(null)}
-          className="flex-1 bg-white/5 py-3 rounded-xl hover:bg-white/10 transition-all text-sm"
-        >
-          Zatvori
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      {shareLink && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full">
+            <h3 className="text-xl font-bold mb-2">🔗 Share link</h3>
+            <p className="text-gray-400 text-sm mb-4">Pošalji ovaj link da drugi mogu vidjeti album:</p>
+            <div className="bg-black p-3 rounded-xl border border-white/10 text-xs text-green-400 break-all mb-6">
+              {shareLink}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { navigator.clipboard.writeText(shareLink); showToast('Link kopiran! 📋'); }}
+                className="flex-1 bg-white text-black py-3 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm"
+              >
+                Kopiraj
+              </button>
+              <button
+                onClick={() => setShareLink(null)}
+                className="flex-1 bg-white/5 py-3 rounded-xl hover:bg-white/10 transition-all text-sm"
+              >
+                Zatvori
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <Toast message={toastMsg} />
+      <ConfirmModal 
+        isOpen={deleteModal.isOpen}
+        title="⚠️ Obriši album"
+        message="Ova akcija će obrisati album, ali fotografije unutar njega ostaju sačuvane. Jeste li sigurni?"
+        t={t}
+        onClose={() => setDeleteModal({ isOpen: false, albumId: null })}
+        onConfirm={async () => {
+          if (deleteModal.albumId) {
+            try {
+              await deleteAlbum(deleteModal.albumId);
+              setAlbums(prev => prev.filter(a => Number(a.id) !== deleteModal.albumId));
+              showToast('Album obrisan! ✅');
+            } catch {
+              showToast(t.greska);
+            }
+          }
+          setDeleteModal({ isOpen: false, albumId: null });
+        }} />
     </div>
   );
 }

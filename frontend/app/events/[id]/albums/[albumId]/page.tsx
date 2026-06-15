@@ -1,7 +1,14 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getAlbum, getTrenutniKorisnik, ApiAlbumDetalji, ApiFotografija, objaviAlbum } from '@/lib/api';
+import { 
+  getAlbum, 
+  getTrenutniKorisnik, 
+  ApiAlbumDetalji, 
+  ApiFotografija, 
+  objaviAlbum,
+  ukloniFotografijaIzAlbuma
+} from '@/lib/api';
 import Link from 'next/link';
 
 const PREVODI = {
@@ -12,6 +19,11 @@ const PREVODI = {
     albumPrazan: 'Ovaj album je trenutno prazan.',
     greska: 'Greška pri učitavanju albuma.',
     ucitavanje: 'Učitavanje...',
+    ukloniIzAlbuma: '🗑️ Ukloni iz albuma',
+    potvrdaUklanjanja: 'Da li ste sigurni da želite ukloniti ovu sliku iz albuma?',
+    greskaUklanjanja: 'Greška pri uklanjanju slike.',
+    ukloni: "⚠️ Ukloni",
+    odustani: "Odustani",
   },
   EN: {
     nazad: '← Back to albums',
@@ -20,8 +32,33 @@ const PREVODI = {
     albumPrazan: 'This album is currently empty.',
     greska: 'Error loading album.',
     ucitavanje: 'Loading...',
+    ukloniIzAlbuma: '🗑️ Remove from album',
+    potvrdaUklanjanja: 'Are you sure you want to remove this photo from the album?',
+    greskaUklanjanja: 'Error removing photo.',
+    ukloni: "⚠️ Remove",
+    odustani: "Cancel",
   }
 };
+
+function ConfirmModal({ isOpen, title, message, onClose, onConfirm, t }: any) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+        <h3 className="text-2xl font-bold mb-4 text-white">{title}</h3>
+        <p className="text-gray-400 mb-8">{message}</p>
+        <div className="flex gap-4">
+          <button onClick={onClose} className="flex-1 px-4 py-3 bg-white/5 rounded-xl hover:bg-white/10 text-white transition-all font-semibold">
+            {t.odustani}
+          </button>
+          <button onClick={onConfirm} className="flex-1 px-4 py-3 bg-red-500 rounded-xl hover:bg-red-600 font-bold text-white transition-all shadow-lg shadow-red-500/20 active:scale-95">
+            {t.ukloni}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AlbumDetails() {
   const params = useParams();
@@ -40,6 +77,8 @@ export default function AlbumDetails() {
   const [publishing, setPublishing] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean }>({ isOpen: false });
+
   const handleCopyLink = () => {
     if (album?.share_code) {
       const link = `${window.location.origin}/share/albums/${album.share_code}`;
@@ -53,9 +92,7 @@ export default function AlbumDetails() {
     if (!album) return;
     setPublishing(true);
     try {
-      // ZAMJENA: Koristimo albumId iz linka umjesto album.id
       const objavljeni = await objaviAlbum(Number(albumId));
-      
       setAlbum({ ...album, javno: true, share_code: objavljeni.share_code });
     } catch (err: any) {
       alert("Greška pri objavi. Provjerite je li album finalni.");
@@ -78,7 +115,6 @@ export default function AlbumDetails() {
       .catch(() => setMozeUpravljatiAlbumom(false));
 
     if (albumId === 'favorites') {
-      // Čitamo favorite iz backenda
       import('@/lib/api').then(({ getFotografije }) => {
         getFotografije(Number(eventId))
           .then(photos => {
@@ -112,7 +148,6 @@ export default function AlbumDetails() {
   const t = jezik === 'BS' ? PREVODI.BS : PREVODI.EN;
   const photos: ApiFotografija[] = album?.fotografije ?? [];
 
-  // Navigacija lightboxa
   const navigateTo = useCallback((index: number) => {
     if (index >= 0 && index < photos.length) setSelectedIndex(index);
   }, [photos.length]);
@@ -131,7 +166,6 @@ export default function AlbumDetails() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedIndex, navigateTo]);
 
-  // NOVO: Slideshow tajmer
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isPlaying && photos.length > 0) {
@@ -175,9 +209,25 @@ export default function AlbumDetails() {
     );
   }
 
+  const handleRemoveFromAlbum = async () => {
+    if (!selectedPhoto || !albumId) return;
+    
+    try {
+      await ukloniFotografijaIzAlbuma(Number(albumId), selectedPhoto.id);
+      setAlbum(prev => prev ? { 
+        ...prev, 
+        fotografije: prev.fotografije.filter(f => f.id !== selectedPhoto.id) 
+      } : null);
+      
+      setSelectedIndex(null);
+      setDeleteModal({ isOpen: false }); 
+    } catch {
+      alert(t.greskaUklanjanja);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-12 font-sans overflow-x-hidden">
-      {/* Lightbox */}
         {selectedPhoto && (
           <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center"
             onClick={() => { setSelectedIndex(null); setIsPlaying(false); }}>
@@ -192,10 +242,24 @@ export default function AlbumDetails() {
             <div className="absolute top-4 left-1/2 -translate-x-1/2 text-sm text-gray-400 bg-black/60 px-4 py-1.5 rounded-full">
               {(selectedIndex ?? 0) + 1} / {photos.length}
             </div>
-            <button onClick={() => setSelectedIndex(null)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white bg-white/10 hover:bg-white/20 w-10 h-10 rounded-full flex items-center justify-center transition-all">
-              ✕
-            </button>
+            <div className="absolute top-4 right-4 flex gap-2">
+              {mozeUpravljatiAlbumom && albumId !== 'favorites' && (
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); // OVO SPAŠAVA SITUACIJU!
+                    setDeleteModal({ isOpen: true }); 
+                  }} 
+                  className="bg-red-500/20 hover:bg-red-500/40 text-red-400 px-4 py-2 rounded-full text-sm font-bold transition-all"
+                >
+                  {t.ukloniIzAlbuma}
+                </button>
+              )}
+              
+              <button onClick={() => { setSelectedIndex(null); setIsPlaying(false); }}
+                className="bg-white/10 hover:bg-white/20 w-10 h-10 rounded-full flex items-center justify-center transition-all">
+                ✕
+              </button>
+            </div>
             <button onClick={e => { e.stopPropagation(); navigateTo((selectedIndex ?? 0) - 1); }}
               disabled={(selectedIndex ?? 0) <= 0}
               className="absolute left-4 bg-white/10 hover:bg-white/20 p-3 rounded-full border border-white/10 text-white transition-all disabled:opacity-0 disabled:pointer-events-none">
@@ -214,15 +278,12 @@ export default function AlbumDetails() {
         <header className="border-b border-white/10 px-6 md:px-12 py-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           
-          {/* Jedino dugme Nazad */}
           <Link href={`/events/${eventId}?tab=albums`} className="inline-flex items-center gap-2 text-gray-400 hover:text-white text-sm font-semibold transition-colors">
             {t.nazad}
           </Link>
 
-          {/* DESNA STRANA: Akcije za album */}
           {album && (
             <div className="flex gap-3">
-              {/* Slideshow dugme vidljivo svima ako ima slika */}
               {photos.length > 0 && (
                 <button onClick={() => setIsPlaying(true)}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-white/5 hover:bg-white/15 border border-white/10 text-white transition-all shadow-lg">
@@ -233,7 +294,6 @@ export default function AlbumDetails() {
                 </button>
               )}
 
-              {/* Objavi/Kopiraj vidljivo samo adminima i to NE u Favoritima */}
               {mozeUpravljatiAlbumom && albumId !== 'favorites' && (
                 album.javno ? (
                   <button onClick={handleCopyLink}
@@ -258,7 +318,6 @@ export default function AlbumDetails() {
             Objavljeno
           </div>
         )}
-        {/* Ako album ima naziv, prikazaće se. Ako nema, ostaće prostor. */}
         <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">{album?.naziv}</h1>
         {album?.opis && <p className="text-gray-400 mt-3 text-lg">{album.opis}</p>}
         <p className="text-gray-500 mt-2 text-sm">{photos.length} {t.fotografija}</p>
@@ -283,6 +342,15 @@ export default function AlbumDetails() {
           </div>
         )}
         </div>
+        
+        <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title={t.ukloni}
+        message={t.potvrdaUklanjanja}
+        onClose={() => setDeleteModal({ isOpen: false })}
+        onConfirm={handleRemoveFromAlbum}
+        t={t}
+      />
     </div>
   );
 }

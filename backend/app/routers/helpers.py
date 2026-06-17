@@ -12,7 +12,7 @@ from app.models.lajk import Lajk
 from app.models.tag import Tag
 from app.schemas.album import AlbumDetailResponse, AlbumResponse
 from app.schemas.fotografija import FotografijaResponse, TagResponse
-from app.services.upload_service import napravi_public_url
+from app.services.upload_service import napravi_public_url, tip_medija_iz_naziva
 
 
 def pronadji_event_ili_greska(session: Session, event_id: int) -> Event:
@@ -125,6 +125,7 @@ def fotografija_u_response(
         event_id=fotografija.event_id,
         korisnik_id=fotografija.korisnik_id,
         url=napravi_public_url(fotografija.putanja),
+        tip_medija=tip_medija_iz_naziva(fotografija.putanja),
         vrijeme_uploada=fotografija.vrijeme_uploada,
         broj_lajkova=broj_lajkova(session, fotografija.id),
         broj_komentara=broj_komentara(session, fotografija.id),

@@ -4,11 +4,10 @@ import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigat
 import Link from 'next/link';
 import {
   getEvent, updateEvent, deleteEvent, deleteAlbum,
-  getFotografije, toggleFavorit, objaviAlbum,
+  getFotografije, toggleFavorit,
   getAlbumi, dodajFotografijaUAlbum, getTrenutniKorisnik,
-  ApiEvent, ApiFotografija, ApiAlbum, getUcesnici, ApiKorisnik, ukloniUcesnika
-} from '@/lib/api';
-import { QRCodeSVG } from 'qrcode.react';
+  ApiFotografija, ApiAlbum, getUcesnici, ApiKorisnik, ukloniUcesnika
+} from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Participant { id: number; name: string; }
@@ -29,7 +28,7 @@ const PREVODI = {
     pretrazi: 'Pretraži po tagu...', nemaTaga: 'Nema slika sa tim tagom.',
     dodajUAlbum: '+ Album', izaberiAlbum: 'Izaberi album:', nemaAlbuma: 'Nemaš još albuma.',
     odustani: 'Odustani', mojiAlbumi: 'Moji albumi', kreirajAlbum: '+ Kreiraj album',
-    favoriti: '⭐ Favoriti', fotografija: 'fotografija', albumPrazan: 'Nemaš još albuma.',
+    favoriti: 'Favoriti', fotografija: 'fotografija', albumPrazan: 'Nemaš još albuma.',
     ucesniciNaslov: 'Učesnici događaja', prijavljeni: 'Prijavljeni',
     ukloniUcesnika: 'Ukloni',
     ucesnikUklonjen: 'Učesnik je uklonjen.',
@@ -44,14 +43,10 @@ const PREVODI = {
     dangerOpis: 'Ove akcije su trajne i nepovratne.', obrisiDogadjaj: 'Trajno izbriši događaj',
     sacuvajNaslov: 'Sačuvaj promjene', sacuvajPitanje: 'Da li želiš sačuvati izmjene?',
     brisanjeNaslov: '⚠️ Trajno brisanje', brisanjePitanje: 'Ova akcija briše događaj. Jesi li sigurna?',
-    izbrisi: 'Izbriši', modalOdustani: 'Odustani',
+    izbrisi: 'Sačuvaj', modalOdustani: 'Odustani',
     promjeneSacuvane: 'Promjene sačuvane! ✅', greska: 'Greška. Pokušaj ponovo.',
     lajkova: 'lajkova', uFavoritima: '⭐ Favorit', dodajUFavorite: '☆ Dodaj u favorite',
-    aktivan: 'Aktivan', blokiran: 'Blokiran', pristupZaGoste: 'Pristup za goste',
-    pristupOpis: 'Podijelite ovaj kod ili QR sa gostima kako bi ušli u događaj.',
-    pristupniKodNaslov: 'Pristupni kod događaja:',
-    prikaziQR: 'Prikaži QR kod',
-    ulazniceNaslov: 'Ulaznica za događaj'
+    aktivan: 'Aktivan', blokiran: 'Blokiran'
   },
   EN: {
     nazad: '← My events', dobrodosli: 'Welcome to the event dashboard.',
@@ -59,7 +54,7 @@ const PREVODI = {
     pretrazi: 'Search by tag...', nemaTaga: 'No photos with this tag.',
     dodajUAlbum: '+ Album', izaberiAlbum: 'Choose album:', nemaAlbuma: "No albums yet.",
     odustani: 'Cancel', mojiAlbumi: 'My albums', kreirajAlbum: '+ Create album',
-    favoriti: '⭐ Favorites', fotografija: 'photos', albumPrazan: "No albums yet.",
+    favoriti: 'Favorites', fotografija: 'photos', albumPrazan: "No albums yet.",
     ucesniciNaslov: 'Event participants', prijavljeni: 'Registered',
     ukloniUcesnika: 'Remove',
     ucesnikUklonjen: 'Participant removed.',
@@ -74,14 +69,10 @@ const PREVODI = {
     dangerOpis: 'These actions are permanent.', obrisiDogadjaj: 'Permanently delete event',
     sacuvajNaslov: 'Save changes', sacuvajPitanje: 'Save your changes?',
     brisanjeNaslov: '⚠️ Delete', brisanjePitanje: 'This will delete the event. Are you sure?',
-    izbrisi: 'Delete', modalOdustani: 'Cancel',
+    izbrisi: 'Save', modalOdustani: 'Cancel',
     promjeneSacuvane: 'Changes saved! ✅', greska: 'Error. Please try again.',
     lajkova: 'likes', uFavoritima: '⭐ Favorite', dodajUFavorite: '☆ Add to favorites',
-    aktivan: 'Active', blokiran: 'Blocked', pristupZaGoste: 'Guest access',
-    pristupOpis: 'Share this code or QR with guests so they can join the event.',
-    pristupniKodNaslov: 'Event access code:',
-    prikaziQR: 'Show QR code',
-    ulazniceNaslov: 'Event ticket'
+    aktivan: 'Active', blokiran: 'Blocked'
   }
 };
 type T = typeof PREVODI.BS;
@@ -132,18 +123,16 @@ function Toast({ message }: { message: string | null }) {
   );
 }
 
-function ConfirmModal({ isOpen, title, message, onClose, onConfirm, t }: {
-  isOpen: boolean; title: string; message: string; onClose: () => void; onConfirm: () => void; t: T;
-}) {
+function ConfirmModal({ isOpen, title, message, onClose, onConfirm, confirmLabel, cancelLabel, danger = false }: any) {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
       <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full">
         <h3 className="text-2xl font-bold mb-4">{title}</h3>
         <p className="text-gray-400 mb-8">{message}</p>
         <div className="flex gap-4">
-          <button onClick={onClose} className="flex-1 px-4 py-3 bg-white/5 rounded-xl hover:bg-white/10">{t.modalOdustani}</button>
-          <button onClick={onConfirm} className="flex-1 px-4 py-3 bg-red-500 rounded-xl hover:bg-red-600 font-bold">{t.izbrisi}</button>
+          <button onClick={onClose} className="flex-1 px-4 py-3 bg-white/5 rounded-xl hover:bg-white/10 font-semibold">{cancelLabel}</button>
+          <button onClick={onConfirm} className={`flex-1 px-4 py-3 rounded-xl font-bold ${danger ? 'bg-red-500 hover:bg-red-600' : 'bg-white text-black hover:bg-gray-200'}`}>{confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -162,7 +151,7 @@ function FormField({ label, icon, ...props }: React.InputHTMLAttributes<HTMLInpu
 }
 
 // ─── Tab: Photos ──────────────────────────────────────────────────────────────
-function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boolean; }) {
+function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: boolean }) {
   const [photos, setPhotos] = useState<ApiFotografija[]>([]);
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
   const [ucesnici, setUcesnici] = useState<ApiKorisnik[]>([]);
@@ -176,41 +165,34 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
 
   useEffect(() => {
     let cancelled = false;
-
-    const ucitajPodatke = async () => {
+    const load = async () => {
       try {
-        const f = await getFotografije(Number(eventId));
+        const [f, a] = await Promise.all([
+          getFotografije(Number(eventId)),
+          getAlbumi(Number(eventId)),
+        ]);
         if (cancelled) return;
-        setPhotos(f);
-
-        const a = await getAlbumi(Number(eventId));
-        if (cancelled) return;
-        setAlbums(a);
-
-        // Gosti ne trebaju listu ucesnika za upravljanje/tag pretragu; ne blokiramo prikaz fotografija zbog toga.
+        setPhotos(f); setAlbums(a);
         if (mozeSve) {
           const u = await getUcesnici(Number(eventId));
-          if (cancelled) return;
-          setUcesnici(u);
+          if (!cancelled) setUcesnici(u);
         }
         try {
-          const trenutni = await getTrenutniKorisnik();
-          if (!cancelled) setTrenutniKorisnikId(trenutni.id);
-        } catch {
-          // Ignoriši (ako je neregistrovani gost, ne treba mu ovaj filter)
-        }
-      } catch {
-        if (!cancelled) showToast(t.greska);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+          const k = await getTrenutniKorisnik();
+          if (!cancelled) setTrenutniKorisnikId(k.id);
+        } catch {}
+      } catch { if (!cancelled) showToast(t.greska); }
+      finally { if (!cancelled) setLoading(false); }
     };
-
-    ucitajPodatke();
-    return () => {
-      cancelled = true;
-    };
+    load();
+    return () => { cancelled = true; };
   }, [eventId, mozeSve]);
+
+  useEffect(() => {
+    Promise.all([getFotografije(Number(eventId)), getAlbumi(Number(eventId))])
+      .then(([f, a]) => { setPhotos(f); setAlbums(a); })
+      .finally(() => setLoading(false));
+  }, [eventId]);
 
   useEffect(() => {
     const handle = (e: MouseEvent) => {
@@ -238,29 +220,19 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
   };
 
   const filtered = photos.filter(foto => {
-    // 1. FILTER: Da li je pritisnuto "Samo moje"?
     if (samoMoje && trenutniKorisnikId) {
-      const naSlici = foto.tagovi && foto.tagovi.some(tag => tag.oznaceni_korisnik_id === trenutniKorisnikId);
-      if (!naSlici) return false; // Ako nije na slici, odmah je sakrij
+      const naSlici = (foto as any).tagovi?.some((tag: any) => tag.oznaceni_korisnik_id === trenutniKorisnikId);
+      if (!naSlici) return false;
     }
-
-    // 2. FILTER: Pretraga po tekstu
-    if (!searchTerm.trim()) return true; // Ako nema pretrage, prikaži sliku (jer je prošla prvi filter)
-    
+    if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
-
     if (String(foto.id).includes(term)) return true;
-
-    if (foto.tagovi && foto.tagovi.length > 0) {
-      const imaPoklapanje = foto.tagovi.some(tag => {
-        const ucesnik = ucesnici.find(u => u.id === tag.oznaceni_korisnik_id);
-        const ime = tag.oznaceni_korisnik_ime || ucesnik?.ime || '';
-        return ime.toLowerCase().includes(term);
-      });
-      if (imaPoklapanje) return true;
-    }
-
-    return false;
+    const matchTag = (foto as any).tagovi?.some((tag: any) => {
+      const u = ucesnici.find(u => u.id === tag.oznaceni_korisnik_id);
+      const ime = tag.oznaceni_korisnik_ime || u?.ime || '';
+      return ime.toLowerCase().includes(term);
+    });
+    return !!matchTag;
   });
 
   if (loading) return (
@@ -273,24 +245,22 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
     <div className="animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <h2 className="text-2xl font-bold">{t.galerija}</h2>
-        <div className="flex w-full md:w-auto gap-3">
-          {/* Dugme "Samo moje" */}
+        <div className="flex flex-wrap md:flex-nowrap w-full md:w-auto gap-2 md:gap-3">
           {trenutniKorisnikId && (
             <button onClick={() => setSamoMoje(!samoMoje)}
-              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all border shrink-0 ${samoMoje ? 'bg-[#e60023] border-[#e60023] text-white' : 'bg-[#111] border-white/10 text-gray-300 hover:border-white/30'}`}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-              <span className="hidden sm:inline">{samoMoje ? 'Sve slike' : 'Samo ja'}</span>
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs md:text-sm font-bold transition-all border shrink-0 ${samoMoje ? 'bg-[#e60023] border-[#e60023] text-white' : 'bg-[#111] border-white/10 text-gray-300 hover:border-white/30'}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>{samoMoje ? t.sveSlike : t.sameMoje}</span>
             </button>
           )}
-          <div className="relative flex-1 md:w-64">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
+          <div className="relative flex-1 min-w-[140px] md:w-64">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">🔍</span>
             <input type="text" placeholder={t.pretrazi} value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-[#111] border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:border-white/30 outline-none" />
+              className="w-full bg-[#111] border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs md:text-sm text-white focus:border-white/30 outline-none" />
           </div>
-          {/* Dugme vodi na upload stranicu */}
           <Link href={`/events/${eventId}/upload`}
-            className="bg-white text-black px-4 py-2 rounded-xl text-sm font-bold shrink-0 hover:bg-gray-200 transition-all">
+            className="bg-white text-black px-4 py-2 rounded-xl text-xs md:text-sm font-bold shrink-0 hover:bg-gray-200 transition-all flex items-center">
             {t.dodajSlike}
           </Link>
         </div>
@@ -298,67 +268,87 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
 
       {filtered.length === 0 ? (
         <div className="text-center py-20 text-gray-500">
-          <p className="text-4xl mb-3">🔍</p>
-          <p>{t.nemaTaga}</p>
+          <p className="text-4xl mb-3">{searchTerm || samoMoje ? '🔍' : '📭'}</p>
+          <p>{searchTerm || samoMoje ? t.nemaTaga : t.galerija_prazna}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
           {filtered.map(foto => (
-            <div key={foto.id} className="relative group">
-              <Link href={`/photos/${foto.id}`}>
+            <div key={foto.id} className="relative group flex flex-col">
+              
+              <Link href={`/photos/${foto.id}`} className="relative z-0">
                 <div className="aspect-square overflow-hidden rounded-2xl bg-white/5 border border-white/10 cursor-pointer hover:border-white/30 transition-all">
                   <img src={foto.url} className="w-full h-full object-cover" alt="Slika" />
                 </div>
               </Link>
 
-              <div className="flex gap-2 mt-3">
-                <button onClick={() => setSelectedPhotoId(foto.id === selectedPhotoId ? null : foto.id)}
-                  className="flex-1 bg-white/10 hover:bg-white/20 py-2 rounded-lg text-sm font-semibold transition-all">
-                  {t.dodajUAlbum}
-                </button>
-                {/* Favorit — samo organizator/admin */}
+              {/* Akcije ispod slike */}
+              <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mt-2 md:mt-3">
+                {mozeSve && (
+                  <button onClick={() => setSelectedPhotoId(foto.id === selectedPhotoId ? null : foto.id)}
+                    className="flex-1 min-w-[60px] bg-white/10 hover:bg-white/20 px-2 py-1.5 md:py-2 rounded-lg text-[11px] md:text-sm font-semibold transition-all">
+                    {t.dodajUAlbum}
+                  </button>
+                )}
+                
                 {mozeSve && (
                   <button onClick={() => handleFavorit(foto)}
-                    className={`px-3 py-2 rounded-lg text-sm transition-all ${foto.favorit ? 'bg-yellow-500/20 text-yellow-400' : 'bg-white/10 hover:bg-white/20 text-gray-400'}`}>
+                    className={`px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm transition-all shrink-0 ${foto.favorit ? 'bg-yellow-500/20 text-yellow-400' : 'bg-white/10 hover:bg-white/20 text-gray-400'}`}>
                     ⭐
                   </button>
                 )}
-                {/* Download — svi */}
+                
                 <button onClick={() => handleDownload(foto.url, `slika-${foto.id}.jpg`)}
-                  className="px-3 bg-black border border-white/10 hover:bg-gray-800 py-2 rounded-lg text-white">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  className="px-2 py-1.5 md:px-3 md:py-2 bg-black border border-white/10 hover:bg-gray-800 rounded-lg text-white shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="md:w-[16px] md:h-[16px]">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                   </svg>
                 </button>
-                {/* DESNA STRANA: Indikator tagova */}
-                {foto.tagovi && foto.tagovi.length > 0 && (
-                  <span className="text-white/30 text-[11px] font-medium flex items-center gap-1.5 transition-colors hover:text-white/60 cursor-help" title={`Označeno osoba: ${foto.tagovi.length}`}>
-                    {foto.tagovi.length}
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                      <circle cx="12" cy="7" r="4"></circle>
-                    </svg>
+
+                {(foto as any).tagovi?.length > 0 && (
+                  <span className="ml-auto text-white/30 text-[10px] md:text-[11px] flex items-center gap-1 hover:text-white/60 cursor-help shrink-0"
+                    title={`Označenih osoba: ${(foto as any).tagovi.length}`}>
+                    {(foto as any).tagovi.length}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="md:w-[12px] md:h-[12px]"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                   </span>
                 )}
               </div>
+
+              {/* Modal za odabir albuma */}
               {selectedPhotoId === foto.id && (
-                <div ref={menuRef} className="absolute top-16 left-0 right-0 bg-[#1a1a1a] border border-white/10 p-4 rounded-2xl z-20 shadow-2xl">
-                  <p className="text-xs text-gray-400 mb-2">{t.izaberiAlbum}</p>
-                  {albums.length === 0 && <p className="text-xs text-gray-600 italic">{t.nemaAlbuma}</p>}
-                  {albums.map(album => (
-                    <button key={album.id}
-                      onClick={async () => {
-                        try {
-                          await dodajFotografijaUAlbum(album.id, foto.id);
-                          showToast('Slika dodata u album! 📸');
-                          setSelectedPhotoId(null);
-                        } catch { showToast(t.greska); }
-                      }}
-                      className="block w-full text-left px-3 py-2 hover:bg-white/10 rounded-lg text-sm">
-                      {album.naziv}
-                    </button>
-                  ))}
-                  <button onClick={() => setSelectedPhotoId(null)} className="mt-2 text-xs text-red-400">{t.odustani}</button>
+                <div ref={menuRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] bg-[#1a1a1a]/95 backdrop-blur-md border border-white/20 p-3 md:p-4 rounded-2xl z-20 shadow-2xl">
+                  <p className="text-[10px] md:text-xs text-gray-400 mb-2">{t.izaberiAlbum}</p>
+                  
+                  {albums.length === 0 && <p className="text-[10px] md:text-xs text-gray-600 italic">{t.nemaAlbuma}</p>}
+                  
+                  <div className="max-h-32 md:max-h-40 overflow-y-auto space-y-1">
+                    {albums.map(album => (
+                      <button key={album.id}
+                        onClick={async () => {
+                          // RJEŠENJE ZA TYPESCRIPT GREŠKU (dodato: as any)
+                          const slikaVecPostoji = (album as any).fotografije?.some((f: any) => f.id === foto.id);
+                          if (slikaVecPostoji) {
+                            showToast('Ova slika je već u tom albumu! 📸');
+                            setSelectedPhotoId(null);
+                            return;
+                          }
+
+                          try {
+                            await dodajFotografijaUAlbum(album.id, foto.id);
+                            setAlbums(prev => prev.map(a => a.id === album.id ? { ...a, broj_fotografija: (a.broj_fotografija || 0) + 1 } : a));
+                            showToast(t.slikaDodataUAlbum);
+                            setSelectedPhotoId(null);
+                          } catch { showToast(t.greska); }
+                        }}
+                        className="block w-full text-left px-2 py-1.5 md:px-3 md:py-2 hover:bg-white/10 rounded-lg text-xs md:text-sm font-medium truncate transition-colors">
+                        {album.naziv}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <button onClick={() => setSelectedPhotoId(null)} className="mt-2 w-full text-center py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] md:text-xs text-red-400 font-bold transition-colors">
+                    {t.odustani}
+                  </button>
                 </div>
               )}
             </div>
@@ -371,27 +361,19 @@ function PhotosTab({ eventId, t, mozeSve }: {eventId: string; t: T; mozeSve: boo
 }
 
 // ─── Tab: Albums ──────────────────────────────────────────────────────────────
-function AlbumsTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: boolean; }) {
+function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: any; mozeSve: boolean; jeAdmin: boolean }) {
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
   const [loading, setLoading] = useState(true);
+  const [favCount, setFavCount] = useState(0);
+  const [deleteAlbumModal, setDeleteAlbumModal] = useState<{ isOpen: boolean; albumId: number | null }>({ isOpen: false, albumId: null });
   const { message: toastMsg, show: showToast } = useToast();
-  const [shareLink, setShareLink] = useState<string | null>(null);
-  const [kopiranId, setKopiranId] = useState<number | string | null>(null);
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; albumId: number | null }>({
-  isOpen: false,
-  albumId: null
-});
 
   useEffect(() => {
     getAlbumi(Number(eventId))
       .then(setAlbums)
       .catch(() => showToast(t.greska))
       .finally(() => setLoading(false));
-  }, [eventId]);
-
-  // Broji favorite iz fotografija
-  const [favCount, setFavCount] = useState(0);
-  useEffect(() => {
+      
     getFotografije(Number(eventId))
       .then(photos => setFavCount(photos.filter(p => p.favorit).length))
       .catch(() => {});
@@ -412,80 +394,69 @@ function AlbumsTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: bo
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-bold">{t.mojiAlbumi}</h2>
-        <Link href={`/events/${eventId}/albums/create`} className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all active:scale-95">
-          {t.kreirajAlbum}
-        </Link>
+        {mozeSve && (
+          <Link href={`/events/${eventId}/albums/create`}
+            className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all active:scale-95">
+            {t.kreirajAlbum}
+          </Link>
+        )}
       </div>
 
       {allAlbums.length === 1 && favCount === 0 ? (
         <p className="text-gray-500 italic">{t.albumPrazan}</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
           {allAlbums.map(album => (
-            <div key={album.id} className="bg-white/5 p-6 rounded-3xl relative flex flex-col justify-between min-h-[130px] border border-white/5 hover:border-white/10 transition-all">
-              {/* Klik uvijek vodi na internu stranicu albuma */}
-              <Link href={`/events/${eventId}/albums/${album.id}`}>
-                <h3 className="text-xl font-bold hover:underline">{album.naziv}</h3>
-                <p className="text-xs text-gray-500 mt-2">{album.broj_fotografija} {t.fotografija}</p>
-              </Link>
+            <div key={album.id} className="bg-white/5 p-5 md:p-6 rounded-3xl relative border border-white/5 hover:border-white/10 transition-all flex items-center gap-4 group">
+              
+              {/* Ikonica fascikle (ili zvijezda za favorite) */}
+              <div className="text-4xl shrink-0 transition-transform duration-300 group-hover:scale-110">
+                {album.id === 'favorites' ? '⭐' : '📁'}
+              </div>
+              
+              <div className="flex-grow min-w-0 pr-6">
+                <Link href={`/events/${eventId}/albums/${album.id}`} className="block">
+                  <h3 className="text-lg md:text-xl font-bold hover:underline truncate">{album.naziv}</h3>
+                  <p className="text-xs text-gray-500 mt-1">{album.broj_fotografija} {t.fotografija}</p>
+                </Link>
+              </div>
 
-              {mozeSve && album.id !== 'favorites' && (
+              {/* Brisanje — samo admin, i ne za favorites */}
+              {jeAdmin && album.id !== 'favorites' && (
                 <button
-                  onClick={() => setDeleteModal({ isOpen: true, albumId: Number(album.id) })}
-                  className="absolute top-4 right-4 text-red-500 hover:text-red-400 transition-colors"
+                  onClick={() => setDeleteAlbumModal({ isOpen: true, albumId: Number(album.id) })}
+                  className="absolute top-3 right-3 md:top-4 md:right-4 text-gray-600 hover:text-red-500 transition-colors p-1"
+                  title="Obriši album"
                 >
-                  ✕
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                 </button>
               )}
             </div>
-        ))}
+          ))}
         </div>
       )}
-      {/* Share link modal */}
-      {shareLink && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 max-w-sm w-full">
-            <h3 className="text-xl font-bold mb-2">🔗 Share link</h3>
-            <p className="text-gray-400 text-sm mb-4">Pošalji ovaj link da drugi mogu vidjeti album:</p>
-            <div className="bg-black p-3 rounded-xl border border-white/10 text-xs text-green-400 break-all mb-6">
-              {shareLink}
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { navigator.clipboard.writeText(shareLink); showToast('Link kopiran! 📋'); }}
-                className="flex-1 bg-white text-black py-3 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm"
-              >
-                Kopiraj
-              </button>
-              <button
-                onClick={() => setShareLink(null)}
-                className="flex-1 bg-white/5 py-3 rounded-xl hover:bg-white/10 transition-all text-sm"
-              >
-                Zatvori
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      <Toast message={toastMsg} />
-      <ConfirmModal 
-        isOpen={deleteModal.isOpen}
-        title="⚠️ Obriši album"
-        message="Ova akcija će obrisati album, ali fotografije unutar njega ostaju sačuvane. Jeste li sigurni?"
-        t={t}
-        onClose={() => setDeleteModal({ isOpen: false, albumId: null })}
+
+      {/* Confirm modal za brisanje albuma */}
+      <ConfirmModal
+        isOpen={deleteAlbumModal.isOpen}
+        title={t.brisanjeAlbumaNaslov}
+        message={t.brisanjeAlbumaPitanje}
+        confirmLabel={t.izbrisiDugme}
+        cancelLabel={t.odustaniDugme}
+        danger={true}
+        onClose={() => setDeleteAlbumModal({ isOpen: false, albumId: null })}
         onConfirm={async () => {
-          if (deleteModal.albumId) {
+          if (deleteAlbumModal.albumId) {
             try {
-              await deleteAlbum(deleteModal.albumId);
-              setAlbums(prev => prev.filter(a => Number(a.id) !== deleteModal.albumId));
+              await deleteAlbum(deleteAlbumModal.albumId);
+              setAlbums(prev => prev.filter(a => Number(a.id) !== deleteAlbumModal.albumId));
               showToast('Album obrisan! ✅');
-            } catch {
-              showToast(t.greska);
-            }
+            } catch { showToast(t.greska); }
           }
-          setDeleteModal({ isOpen: false, albumId: null });
-        }} />
+          setDeleteAlbumModal({ isOpen: false, albumId: null });
+        }}
+      />
+      <Toast message={toastMsg} />
     </div>
   );
 }
@@ -588,7 +559,6 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
   const [saving, setSaving] = useState(false);
   const [saveModal, setSaveModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
-  const [showQR, setShowQR] = useState(false);
   const { message: toastMsg, show: showToast } = useToast();
 
   useEffect(() => {
@@ -644,27 +614,6 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
         </div>
       </section>
 
-      {/* Pristup za goste */}
-      <section className="space-y-6">
-        <div>
-          <h3 className="text-3xl font-extrabold tracking-tight">{t.pristupZaGoste}</h3>
-          <p className="text-gray-500 text-sm mt-1">{t.pristupOpis}</p>
-        </div>
-        <div className="bg-[#111] p-5 md:p-6 rounded-3xl border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-center sm:text-left">
-            <p className="text-xs text-gray-400 mb-0.5">{t.pristupniKodNaslov}</p>
-            <p className="text-3xl md:text-4xl font-black tracking-widest text-white">{form.kod}</p>
-          </div>
-          <button onClick={() => setShowQR(true)}
-            className="w-full sm:w-auto bg-white text-black px-5 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 text-xs md:text-sm shadow-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="3" height="3"/><rect x="14" y="7" width="3" height="3"/><rect x="7" y="14" width="3" height="3"/><rect x="14" y="14" width="3" height="3"/>
-            </svg>
-            {t.prikaziQR}
-          </button>
-        </div>
-      </section>
-
       <section className="space-y-6">
         <div>
           <h3 className="text-3xl font-extrabold tracking-tight">{t.privatnost}</h3>
@@ -702,24 +651,6 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
           {t.obrisiDogadjaj}
         </button>
       </section>
-
-      {/* QR Modal */}
-      {showQR && form.kod && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowQR(false)}>
-          <div className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/10 flex flex-col items-center max-w-sm w-full" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-bold mb-4">{t.ulazniceNaslov}</h3>
-            <div className="bg-white p-3 rounded-2xl mb-5 shadow-2xl">
-              <QRCodeSVG value={`${window.location.origin}/join?code=${form.kod}`} size={180} level="H" />
-            </div>
-            <div className="bg-black/50 px-5 py-1.5 rounded-full border border-white/10 mb-6">
-              <span className="font-mono text-lg tracking-widest text-white">{form.kod}</span>
-            </div>
-            <button onClick={() => setShowQR(false)} className="w-full py-2.5 bg-white/10 hover:bg-white/20 rounded-xl font-bold transition-all text-xs">
-              {t.zatvori}
-            </button>
-          </div>
-        </div>
-      )}
 
       <ConfirmModal isOpen={saveModal} title={t.sacuvajNaslov} message={t.sacuvajPitanje} t={t} onClose={() => setSaveModal(false)} onConfirm={handleSave} />
       <ConfirmModal isOpen={deleteModal} title={t.brisanjeNaslov} message={t.brisanjePitanje} t={t} onClose={() => setDeleteModal(false)} onConfirm={handleDelete} />
@@ -798,7 +729,7 @@ export default function EventDashboard() {
 
         <div className="mt-6 min-h-[400px] w-full">
           {activeTab === 'photos' && <PhotosTab eventId={id} t={t} mozeSve={mozeSve} />}
-          {activeTab === 'albums' && <AlbumsTab eventId={id} t={t} mozeSve={mozeSve} />}
+          {activeTab === 'albums' && <AlbumsTab eventId={id} t={t} mozeSve={mozeSve} jeAdmin={jeAdmin} />}
           {activeTab === 'participants' && mozeSve && <ParticipantsTab eventId={id} t={t} />}
           {activeTab === 'settings' && mozeSve && <SettingsTab eventId={id} t={t} />}
         </div>

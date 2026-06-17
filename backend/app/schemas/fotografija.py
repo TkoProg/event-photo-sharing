@@ -21,6 +21,7 @@ class FotografijaResponse(BaseModel):
     event_id: int
     korisnik_id: int
     url: str
+    tip_medija: str
     vrijeme_uploada: datetime
     broj_lajkova: int
     broj_komentara: int

@@ -16,7 +16,7 @@ from app.routers.helpers import (
     pronadji_fotografiju_ili_greska,
 )
 from app.schemas.fotografija import FotografijaResponse, TagCreateRequest, TagResponse
-from app.services.upload_service import dozvoljena_slika, sacuvaj_upload_fajl
+from app.services.upload_service import dozvoljen_medij, sacuvaj_upload_fajl
 
 
 router = APIRouter(tags=["Photos"])
@@ -44,10 +44,10 @@ def upload_fotografija(
         )
 
     for upload in files:
-        if not dozvoljena_slika(upload):
+        if not dozvoljen_medij(upload):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Dozvoljen je samo upload slika.",
+                detail="Dozvoljen je samo upload slika i videa.",
             )
 
     sacuvane = []

@@ -1,7 +1,17 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { deleteAdminUser, getAdminStats, getAdminUsers, getTrenutniKorisnik, toggleBlokirajKorisnika, ApiAdminStats, ApiKorisnik } from '../../lib/api';
+import {
+  deleteAdminUser,
+  getAdminStats,
+  getAdminUsers,
+  getTrenutniKorisnik,
+  toggleBlokirajKorisnika,
+  getReporti,
+  ApiAdminStats,
+  ApiKorisnik,
+  ApiReport
+} from '../../lib/api';
 
 interface PrevodStranice {
   naslov: string;
@@ -9,7 +19,9 @@ interface PrevodStranice {
   statKorisnici: string;
   statDogadji: string;
   statFotografije: string;
+  statPrijave: string;
   tabelaKorisnici: string;
+  tabelaPrijave: string;
   kolonaIme: string;
   kolonaEmail: string;
   kolonaUloga: string;
@@ -22,6 +34,11 @@ interface PrevodStranice {
   znackaBlokiran: string;
   nazad: string;
   ucitavanje: string;
+  nemaPrijava: string;
+  tipProblem: string;
+  tipSugestija: string;
+  prijavaOd: string;
+  datumPrijave: string;
   [key: string]: string;
 }
 
@@ -32,7 +49,9 @@ const PREVODI_PODACI: Record<string, PrevodStranice> = {
     statKorisnici: "Ukupno korisnika",
     statDogadji: "Ukupno događaja",
     statFotografije: "Ukupno fotografija",
+    statPrijave: "Prijave korisnika",
     tabelaKorisnici: "Upravljanje korisnicima",
+    tabelaPrijave: "Prijave problema i sugestije",
     kolonaIme: "Ime",
     kolonaEmail: "Email",
     kolonaUloga: "Uloga",
@@ -45,6 +64,11 @@ const PREVODI_PODACI: Record<string, PrevodStranice> = {
     znackaBlokiran: "BLOKIRAN",
     nazad: "← Nazad na Dashboard",
     ucitavanje: "Učitavanje admin podataka...",
+    nemaPrijava: "Trenutno nema poslanih prijava.",
+    tipProblem: "PROBLEM",
+    tipSugestija: "SUGESTIJA",
+    prijavaOd: "Prijava od",
+    datumPrijave: "Datum slanja",
     ERR_UNAUTHORIZED_ACTION: "Nemate ovlaštenje za pristup admin panelu.",
     ERR_CANNOT_BLOCK_SELF: "Ne možete blokirati sami sebe.",
     ERR_CANNOT_DELETE_SELF: "Ne možete obrisati sami sebe.",
@@ -56,7 +80,9 @@ const PREVODI_PODACI: Record<string, PrevodStranice> = {
     statKorisnici: "Total Users",
     statDogadji: "Total Events",
     statFotografije: "Total Photos",
+    statPrijave: "User Reports",
     tabelaKorisnici: "User Management",
+    tabelaPrijave: "Problem reports and suggestions",
     kolonaIme: "Name",
     kolonaEmail: "Email",
     kolonaUloga: "Role",
@@ -69,6 +95,11 @@ const PREVODI_PODACI: Record<string, PrevodStranice> = {
     znackaBlokiran: "BLOCKED",
     nazad: "← Back to Dashboard",
     ucitavanje: "Loading admin data...",
+    nemaPrijava: "There are no submitted reports yet.",
+    tipProblem: "PROBLEM",
+    tipSugestija: "SUGGESTION",
+    prijavaOd: "Report from",
+    datumPrijave: "Submitted at",
     ERR_UNAUTHORIZED_ACTION: "You do not have authorization to access the admin panel.",
     ERR_CANNOT_BLOCK_SELF: "You cannot block yourself.",
     ERR_CANNOT_DELETE_SELF: "You cannot delete yourself.",
@@ -80,6 +111,7 @@ export default function AdminDashboardPage() {
   const [jezik, setJezik] = useState('BS');
   const [stats, setStats] = useState<ApiAdminStats | null>(null);
   const [korisnici, setKorisnici] = useState<ApiKorisnik[]>([]);
+  const [reporti, setReporti] = useState<ApiReport[]>([]);
   const [trenutniAdminId, setTrenutniAdminId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,7 +119,23 @@ export default function AdminDashboardPage() {
 
   const t = PREVODI_PODACI[jezik] || PREVODI_PODACI.BS;
 
-  const ucitajAdminPodatke = async () => {
+  const formatirajDatum = (datum: string) => {
+    try {
+      return new Date(datum).toLocaleString(jezik === 'BS' ? 'bs-BA' : 'en-US', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return datum;
+    }
+  };
+
+  const ucitajAdminPodatke = async (aktivniJezik = jezik) => {
+    const aktivniPrevodi = PREVODI_PODACI[aktivniJezik] || PREVODI_PODACI.BS;
+
     try {
       setLoading(true);
       setGreska('');
@@ -101,12 +149,24 @@ export default function AdminDashboardPage() {
       setStats(statsPodaci);
       setKorisnici(korisniciPodaci);
       setTrenutniAdminId(trenutniKorisnik.id);
+
+      try {
+        const reportiPodaci = await getReporti();
+        setReporti(reportiPodaci);
+      } catch {
+        setReporti([]);
+      }
     } catch (err: unknown) {
       const kodGreske = err instanceof Error ? err.message : '';
-      if (kodGreske && t[kodGreske]) {
-        setGreska(t[kodGreske]);
+
+      if (kodGreske && aktivniPrevodi[kodGreske]) {
+        setGreska(aktivniPrevodi[kodGreske]);
       } else {
-        setGreska(jezik === 'BS' ? 'Nemate ovlaštenje za pristup admin panelu.' : 'You do not have authorization to access the admin panel.');
+        setGreska(
+          aktivniJezik === 'BS'
+            ? 'Nemate ovlaštenje za pristup admin panelu.'
+            : 'You do not have authorization to access the admin panel.'
+        );
       }
     } finally {
       setLoading(false);
@@ -115,10 +175,11 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
-    const animationFrameId = window.requestAnimationFrame(() => {
-      if (sacuvaniJezik) setJezik(sacuvaniJezik);
-      ucitajAdminPodatke();
-    });
+    const aktivniJezik = sacuvaniJezik || 'BS';
+
+    if (sacuvaniJezik) setJezik(sacuvaniJezik);
+
+    ucitajAdminPodatke(aktivniJezik);
 
     const provjeriJezik = () => {
       const trenutni = localStorage.getItem('izabraniJezik');
@@ -129,9 +190,8 @@ export default function AdminDashboardPage() {
 
     return () => {
       window.removeEventListener('storage', provjeriJezik);
-      window.cancelAnimationFrame(animationFrameId);
     };
-  }, [jezik]);
+  }, []);
 
   const handleBlockToggle = async (korisnikId: number, trenutnoBlokiran: boolean) => {
     try {
@@ -140,6 +200,7 @@ export default function AdminDashboardPage() {
       setKorisnici(azuriraniKorisnici);
     } catch (err: unknown) {
       const kodGreske = err instanceof Error ? err.message : '';
+
       if (kodGreske && t[kodGreske]) {
         alert(t[kodGreske]);
       } else {
@@ -164,6 +225,7 @@ export default function AdminDashboardPage() {
       setKorisnici(azuriraniKorisnici);
     } catch (err: unknown) {
       const kodGreske = err instanceof Error ? err.message : '';
+
       if (kodGreske && t[kodGreske]) {
         alert(t[kodGreske]);
       } else {
@@ -200,23 +262,31 @@ export default function AdminDashboardPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
               <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md">
                 <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">{t.statKorisnici}</p>
                 <p className="text-4xl font-mono font-bold text-white">{stats?.broj_korisnika || 0}</p>
               </div>
+
               <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md">
                 <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">{t.statDogadji}</p>
                 <p className="text-4xl font-mono font-bold text-[#e60023]">{stats?.broj_eventa || 0}</p>
               </div>
+
               <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md">
                 <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">{t.statFotografije}</p>
                 <p className="text-4xl font-mono font-bold text-white">{stats?.broj_fotografija || 0}</p>
               </div>
+
+              <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md">
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">{t.statPrijave}</p>
+                <p className="text-4xl font-mono font-bold text-[#e60023]">{reporti.length}</p>
+              </div>
             </div>
 
-            <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-xl">
+            <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-xl mb-10">
               <h2 className="text-xl font-bold mb-6 tracking-tight">{t.tabelaKorisnici}</h2>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -227,6 +297,7 @@ export default function AdminDashboardPage() {
                       <th className="pb-4 text-right font-normal">{t.kolonaAkcija}</th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-white/5 text-sm font-light">
                     {korisnici.map((user: ApiKorisnik) => {
                       const isBlokiran = !!user.blokiran;
@@ -246,8 +317,10 @@ export default function AdminDashboardPage() {
                               </span>
                             )}
                           </td>
+
                           <td className="py-4 text-gray-400">{user.email}</td>
                           <td className="py-4 text-gray-400 font-mono text-xs">{user.uloga}</td>
+
                           <td className="py-4 text-right">
                             <div className="flex justify-end gap-2">
                               <button
@@ -262,6 +335,7 @@ export default function AdminDashboardPage() {
                               >
                                 {isBlokiran ? t.dugmeDeblokiraj : t.dugmeBlokiraj}
                               </button>
+
                               <button
                                 type="button"
                                 disabled={isCurrentAdmin || deletingId === user.id}
@@ -278,6 +352,65 @@ export default function AdminDashboardPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-xl">
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-xl font-bold tracking-tight">{t.tabelaPrijave}</h2>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {jezik === 'BS'
+                      ? 'Ovdje admin vidi poruke koje korisnici pošalju preko Report stranice.'
+                      : 'Here the admin can see messages submitted through the Report page.'}
+                  </p>
+                </div>
+
+                <span className="px-3 py-1 rounded-full bg-[#e60023]/15 text-[#ff4d68] text-xs font-bold border border-[#e60023]/30">
+                  {reporti.length}
+                </span>
+              </div>
+
+              {reporti.length === 0 ? (
+                <div className="bg-black/30 border border-white/10 rounded-2xl p-6 text-center text-sm text-gray-500">
+                  {t.nemaPrijava}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reporti.map((report) => (
+                    <div
+                      key={report.id}
+                      className="bg-black/30 border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-all"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">{t.prijavaOd}</p>
+                          <p className="text-sm text-white font-medium">{report.email}</p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span
+                            className={`px-3 py-1 rounded-full text-[10px] font-bold border ${
+                              report.tip === 'PROBLEM'
+                                ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                                : 'bg-green-500/15 text-green-400 border-green-500/30'
+                            }`}
+                          >
+                            {report.tip === 'PROBLEM' ? t.tipProblem : t.tipSugestija}
+                          </span>
+
+                          <span className="text-xs text-gray-500">
+                            {t.datumPrijave}: {formatirajDatum(report.created_at)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+                        {report.poruka}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}

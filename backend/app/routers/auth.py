@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import Session, select
@@ -21,7 +23,10 @@ from app.services.auth_service import (
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+COOKIE_NAME = "access_token"
+COOKIE_MAX_AGE = 60 * 60 * 24
 
 
 def korisnik_u_response(korisnik: Korisnik) -> KorisnikResponse:
@@ -35,8 +40,30 @@ def korisnik_u_response(korisnik: Korisnik) -> KorisnikResponse:
     )
 
 
+def postavi_auth_cookie(response: Response, token: str):
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        max_age=COOKIE_MAX_AGE,
+        samesite="lax",
+        secure=False,
+        path="/",
+    )
+
+
+def obrisi_auth_cookie(response: Response):
+    response.delete_cookie(
+        key=COOKIE_NAME,
+        path="/",
+        samesite="lax",
+        secure=False,
+    )
+
+
 def get_trenutni_korisnik(
-    token: str = Depends(oauth2_scheme),
+    token_iz_headera: Optional[str] = Depends(oauth2_scheme),
+    token_iz_cookiea: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
     session: Session = Depends(get_session),
 ) -> Korisnik:
     greska = HTTPException(
@@ -44,6 +71,11 @@ def get_trenutni_korisnik(
         detail="ERR_INVALID_TOKEN",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    token = token_iz_headera or token_iz_cookiea
+
+    if token is None:
+        raise greska
 
     try:
         payload = jwt.decode(
@@ -125,6 +157,7 @@ def register(
 @router.post("/login", response_model=TokenResponse)
 def login(
     podaci: LoginRequest,
+    response: Response,
     session: Session = Depends(get_session),
 ):
     korisnik = session.exec(
@@ -151,10 +184,18 @@ def login(
 
     token = kreiraj_access_token(korisnik.id)
 
+    postavi_auth_cookie(response, token)
+
     return TokenResponse(
         access_token=token,
         korisnik=korisnik_u_response(korisnik),
     )
+
+
+@router.post("/logout")
+def logout(response: Response):
+    obrisi_auth_cookie(response)
+    return {"message": "LOGOUT_SUCCESS"}
 
 
 @router.get("/me", response_model=KorisnikResponse)

@@ -2,21 +2,46 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { login } from '../lib/api';
+import { login, getTrenutniKorisnik } from '../lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
+
   const [jezik, setJezik] = useState('BS');
-  
   const [email, setEmail] = useState('');
   const [lozinka, setLozinka] = useState('');
   const [greska, setGreska] = useState('');
   const [loading, setLoading] = useState(false);
+  const [provjeraPrijave, setProvjeraPrijave] = useState(true);
 
   useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
     if (sacuvaniJezik) setJezik(sacuvaniJezik);
   }, []);
+
+  useEffect(() => {
+    let aktivno = true;
+
+    const provjeriDaLiJeVecPrijavljen = async () => {
+      try {
+        await getTrenutniKorisnik();
+
+        if (aktivno) {
+          router.replace('/dashboard');
+        }
+      } catch {
+        if (aktivno) {
+          setProvjeraPrijave(false);
+        }
+      }
+    };
+
+    provjeriDaLiJeVecPrijavljen();
+
+    return () => {
+      aktivno = false;
+    };
+  }, [router]);
 
   const promijeniJezik = (noviJezik: string) => {
     setJezik(noviJezik);
@@ -35,12 +60,15 @@ export default function LoginPage() {
     }
 
     try {
-      const authData = await login(email, lozinka);
-      localStorage.setItem('token', authData.access_token);
-      router.push('/dashboard');
-    } catch (err: any) {
-      const kodGreske = err.message;
-      if (t[kodGreske]) {
+      await login(email, lozinka);
+
+      localStorage.removeItem('token');
+
+      router.replace('/dashboard');
+    } catch (err: unknown) {
+      const kodGreske = err instanceof Error ? err.message : '';
+
+      if (kodGreske && t[kodGreske]) {
         setGreska(t[kodGreske]);
       } else {
         setGreska(jezik === 'BS' ? 'Prijava neuspješna.' : 'Sign in failed.');
@@ -59,6 +87,7 @@ export default function LoginPage() {
       pitanje: "Nemaš račun?",
       akcija: "Registruj se",
       ucitavanje: "Prijava...",
+      provjera: "Učitavanje...",
       ERR_BAD_CREDENTIALS: "Pogrešan email ili lozinka.",
       ERR_USER_BLOCKED: "Vaš korisnički nalog je blokiran."
     },
@@ -70,12 +99,21 @@ export default function LoginPage() {
       pitanje: "Don't have an account?",
       akcija: "Register",
       ucitavanje: "Signing in...",
+      provjera: "Loading...",
       ERR_BAD_CREDENTIALS: "Incorrect email or password.",
       ERR_USER_BLOCKED: "Your account has been blocked."
     }
   };
 
   const t = jezik === 'BS' ? prevodi.BS : prevodi.EN;
+
+  if (provjeraPrijave) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans">
+        <p className="text-sm text-gray-400">{t.provjera}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center relative overflow-hidden font-sans">
@@ -112,6 +150,7 @@ export default function LoginPage() {
             onChange={(e) => setEmail(e.target.value)}
             className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" 
           />
+
           <input 
             type="password" 
             placeholder={t.placeholderLozinka} 

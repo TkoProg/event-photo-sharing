@@ -5,3 +5,4 @@ from app.models.komentar import Komentar
 from app.models.lajk import Lajk
 from app.models.album import Album, AlbumFotografija, TipAlbuma
 from app.models.tag import Tag
+from app.models.prijava_problema import PrijavaProblema

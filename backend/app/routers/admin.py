@@ -8,6 +8,7 @@ from app.models.fotografija import Fotografija
 from app.models.komentar import Komentar
 from app.models.korisnik import Korisnik, UlogaKorisnika
 from app.models.lajk import Lajk
+from app.models.prijava_problema import PrijavaProblema
 from app.models.tag import Tag
 from app.routers.auth import get_trenutni_korisnik
 from app.routers.events import event_u_response
@@ -96,8 +97,19 @@ def obrisi_korisnicke_veze(session: Session, korisnik_id: int) -> None:
         )
     ).all()
     ucesca = session.exec(select(EventUcesnik).where(EventUcesnik.korisnik_id == korisnik_id)).all()
+    prijave = session.exec(
+        select(PrijavaProblema).where(PrijavaProblema.korisnik_id == korisnik_id)
+    ).all()
+    rijesene_prijave = session.exec(
+        select(PrijavaProblema).where(PrijavaProblema.rijesio_admin_id == korisnik_id)
+    ).all()
 
-    for zapis in [*komentari, *lajkovi, *tagovi, *ucesca]:
+    for prijava in rijesene_prijave:
+        if prijava.korisnik_id != korisnik_id:
+            prijava.rijesio_admin_id = None
+            session.add(prijava)
+
+    for zapis in [*komentari, *lajkovi, *tagovi, *ucesca, *prijave]:
         session.delete(zapis)
 
 
@@ -112,6 +124,7 @@ def admin_stats(
     komentari = session.exec(select(Komentar)).all()
     lajkovi = session.exec(select(Lajk)).all()
     albumi = session.exec(select(Album)).all()
+    prijave = session.exec(select(PrijavaProblema)).all()
 
     return AdminStatsResponse(
         broj_korisnika=len(korisnici),
@@ -120,6 +133,7 @@ def admin_stats(
         broj_komentara=len(komentari),
         broj_lajkova=len(lajkovi),
         broj_albuma=len(albumi),
+        broj_prijava=len(prijave),
     )
 
 

@@ -8,6 +8,8 @@ import {
   getTrenutniKorisnik,
   toggleBlokirajKorisnika,
   getReporti,
+  promijeniStatusReporta,
+  deleteReport,
   ApiAdminStats,
   ApiKorisnik,
   ApiReport
@@ -37,6 +39,13 @@ interface PrevodStranice {
   nemaPrijava: string;
   tipProblem: string;
   tipSugestija: string;
+  statusOtvoreno: string;
+  statusRijeseno: string;
+  rijesenoDatum: string;
+  dugmeRijesi: string;
+  dugmeOtvori: string;
+  dugmeObrisiPrijavu: string;
+  potvrdiBrisanjePrijave: string;
   prijavaOd: string;
   datumPrijave: string;
   [key: string]: string;
@@ -67,12 +76,20 @@ const PREVODI_PODACI: Record<string, PrevodStranice> = {
     nemaPrijava: "Trenutno nema poslanih prijava.",
     tipProblem: "PROBLEM",
     tipSugestija: "SUGESTIJA",
+    statusOtvoreno: "OTVORENO",
+    statusRijeseno: "RIJEŠENO",
+    rijesenoDatum: "Riješeno",
+    dugmeRijesi: "Označi riješeno",
+    dugmeOtvori: "Vrati u otvoreno",
+    dugmeObrisiPrijavu: "Obriši prijavu",
+    potvrdiBrisanjePrijave: "Da li sigurno želiš obrisati ovu prijavu?",
     prijavaOd: "Prijava od",
     datumPrijave: "Datum slanja",
     ERR_UNAUTHORIZED_ACTION: "Nemate ovlaštenje za pristup admin panelu.",
     ERR_CANNOT_BLOCK_SELF: "Ne možete blokirati sami sebe.",
     ERR_CANNOT_DELETE_SELF: "Ne možete obrisati sami sebe.",
-    ERR_USER_NOT_FOUND: "Korisnik ne postoji na sistemu."
+    ERR_USER_NOT_FOUND: "Korisnik ne postoji na sistemu.",
+    ERR_REPORT_NOT_FOUND: "Prijava ne postoji na sistemu."
   },
   EN: {
     naslov: "Admin Panel",
@@ -98,22 +115,35 @@ const PREVODI_PODACI: Record<string, PrevodStranice> = {
     nemaPrijava: "There are no submitted reports yet.",
     tipProblem: "PROBLEM",
     tipSugestija: "SUGGESTION",
+    statusOtvoreno: "OPEN",
+    statusRijeseno: "RESOLVED",
+    rijesenoDatum: "Resolved",
+    dugmeRijesi: "Mark resolved",
+    dugmeOtvori: "Reopen",
+    dugmeObrisiPrijavu: "Delete report",
+    potvrdiBrisanjePrijave: "Are you sure you want to delete this report?",
     prijavaOd: "Report from",
     datumPrijave: "Submitted at",
     ERR_UNAUTHORIZED_ACTION: "You do not have authorization to access the admin panel.",
     ERR_CANNOT_BLOCK_SELF: "You cannot block yourself.",
     ERR_CANNOT_DELETE_SELF: "You cannot delete yourself.",
-    ERR_USER_NOT_FOUND: "User does not exist on the system."
+    ERR_USER_NOT_FOUND: "User does not exist on the system.",
+    ERR_REPORT_NOT_FOUND: "Report does not exist on the system."
   }
 };
 
 export default function AdminDashboardPage() {
-  const [jezik, setJezik] = useState('BS');
+  const [jezik, setJezik] = useState(() => {
+    if (typeof window === 'undefined') return 'BS';
+    return localStorage.getItem('izabraniJezik') || 'BS';
+  });
   const [stats, setStats] = useState<ApiAdminStats | null>(null);
   const [korisnici, setKorisnici] = useState<ApiKorisnik[]>([]);
   const [reporti, setReporti] = useState<ApiReport[]>([]);
   const [trenutniAdminId, setTrenutniAdminId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingReportId, setDeletingReportId] = useState<number | null>(null);
+  const [updatingReportId, setUpdatingReportId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [greska, setGreska] = useState('');
 
@@ -140,22 +170,17 @@ export default function AdminDashboardPage() {
       setLoading(true);
       setGreska('');
       
-      const [statsPodaci, korisniciPodaci, trenutniKorisnik] = await Promise.all([
+      const [statsPodaci, korisniciPodaci, trenutniKorisnik, reportiPodaci] = await Promise.all([
         getAdminStats(),
         getAdminUsers(),
-        getTrenutniKorisnik()
+        getTrenutniKorisnik(),
+        getReporti()
       ]);
       
       setStats(statsPodaci);
       setKorisnici(korisniciPodaci);
       setTrenutniAdminId(trenutniKorisnik.id);
-
-      try {
-        const reportiPodaci = await getReporti();
-        setReporti(reportiPodaci);
-      } catch {
-        setReporti([]);
-      }
+      setReporti(reportiPodaci);
     } catch (err: unknown) {
       const kodGreske = err instanceof Error ? err.message : '';
 
@@ -177,9 +202,7 @@ export default function AdminDashboardPage() {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
     const aktivniJezik = sacuvaniJezik || 'BS';
 
-    if (sacuvaniJezik) setJezik(sacuvaniJezik);
-
-    ucitajAdminPodatke(aktivniJezik);
+    void Promise.resolve().then(() => ucitajAdminPodatke(aktivniJezik));
 
     const provjeriJezik = () => {
       const trenutni = localStorage.getItem('izabraniJezik');
@@ -236,6 +259,50 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleReportStatus = async (report: ApiReport) => {
+    const noviStatus = report.status === 'RIJESENO' ? 'OTVORENO' : 'RIJESENO';
+
+    try {
+      setUpdatingReportId(report.id);
+      const azuriraniReport = await promijeniStatusReporta(report.id, noviStatus);
+
+      setReporti((trenutniReporti) =>
+        trenutniReporti.map((trenutniReport) =>
+          trenutniReport.id === azuriraniReport.id ? azuriraniReport : trenutniReport
+        )
+      );
+    } catch (err: unknown) {
+      const kodGreske = err instanceof Error ? err.message : '';
+      alert((kodGreske && t[kodGreske]) || kodGreske || (jezik === 'BS' ? 'Greška pri promjeni statusa prijave.' : 'Error changing report status.'));
+    } finally {
+      setUpdatingReportId(null);
+    }
+  };
+
+  const handleDeleteReport = async (reportId: number) => {
+    if (!window.confirm(t.potvrdiBrisanjePrijave)) return;
+
+    try {
+      setDeletingReportId(reportId);
+      await deleteReport(reportId);
+
+      setReporti((trenutniReporti) => trenutniReporti.filter((report) => report.id !== reportId));
+      setStats((trenutniStats) =>
+        trenutniStats
+          ? {
+              ...trenutniStats,
+              broj_prijava: Math.max(0, trenutniStats.broj_prijava - 1),
+            }
+          : trenutniStats
+      );
+    } catch (err: unknown) {
+      const kodGreske = err instanceof Error ? err.message : '';
+      alert((kodGreske && t[kodGreske]) || kodGreske || (jezik === 'BS' ? 'Greška pri brisanju prijave.' : 'Error deleting report.'));
+    } finally {
+      setDeletingReportId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans animate-pulse">
@@ -280,7 +347,7 @@ export default function AdminDashboardPage() {
 
               <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md">
                 <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">{t.statPrijave}</p>
-                <p className="text-4xl font-mono font-bold text-[#e60023]">{reporti.length}</p>
+                <p className="text-4xl font-mono font-bold text-[#e60023]">{stats?.broj_prijava ?? reporti.length}</p>
               </div>
             </div>
 
@@ -390,6 +457,16 @@ export default function AdminDashboardPage() {
                         <div className="flex flex-wrap items-center gap-3">
                           <span
                             className={`px-3 py-1 rounded-full text-[10px] font-bold border ${
+                              report.status === 'RIJESENO'
+                                ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                                : 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30'
+                            }`}
+                          >
+                            {report.status === 'RIJESENO' ? t.statusRijeseno : t.statusOtvoreno}
+                          </span>
+
+                          <span
+                            className={`px-3 py-1 rounded-full text-[10px] font-bold border ${
                               report.tip === 'PROBLEM'
                                 ? 'bg-red-500/15 text-red-400 border-red-500/30'
                                 : 'bg-green-500/15 text-green-400 border-green-500/30'
@@ -401,12 +478,46 @@ export default function AdminDashboardPage() {
                           <span className="text-xs text-gray-500">
                             {t.datumPrijave}: {formatirajDatum(report.created_at)}
                           </span>
+
+                          {report.rijeseno_at && (
+                            <span className="text-xs text-gray-500">
+                              {t.rijesenoDatum}: {formatirajDatum(report.rijeseno_at)}
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
                         {report.poruka}
                       </p>
+
+                      <div className="mt-5 flex flex-col sm:flex-row gap-2 sm:justify-end">
+                        <button
+                          type="button"
+                          disabled={updatingReportId === report.id}
+                          onClick={() => handleReportStatus(report)}
+                          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                            report.status === 'RIJESENO'
+                              ? 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30 hover:bg-yellow-600 hover:text-white'
+                              : 'bg-blue-500/15 text-blue-300 border border-blue-500/30 hover:bg-blue-600 hover:text-white'
+                          }`}
+                        >
+                          {updatingReportId === report.id
+                            ? '...'
+                            : report.status === 'RIJESENO'
+                              ? t.dugmeOtvori
+                              : t.dugmeRijesi}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={deletingReportId === report.id}
+                          onClick={() => handleDeleteReport(report.id)}
+                          className="px-4 py-2 text-xs font-bold rounded-xl bg-red-950/40 text-red-300 border border-red-500/40 hover:bg-red-700 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {deletingReportId === report.id ? '...' : t.dugmeObrisiPrijavu}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -84,14 +84,18 @@ export interface ApiAdminStats {
   broj_komentara: number;
   broj_lajkova: number;
   broj_albuma: number;
+  broj_prijava: number;
 }
 export interface ApiReport {
   id: number;
   email: string;
   tip: 'PROBLEM' | 'SUGESTIJA';
   poruka: string;
+  status: 'OTVORENO' | 'RIJESENO';
   korisnik_id: number | null;
+  rijesio_admin_id: number | null;
   created_at: string;
+  rijeseno_at: string | null;
 }
 
 // ─── Helper: JSON header ──────────────────────────────────────────────────────
@@ -580,4 +584,28 @@ export async function getReporti(): Promise<ApiReport[]> {
   });
 
   return handleResponse(res);
+}
+
+export async function promijeniStatusReporta(
+  reportId: number,
+  status: 'OTVORENO' | 'RIJESENO'
+): Promise<ApiReport> {
+  const res = await fetch(`${BASE_URL}/reports/${reportId}/status`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: authHeaders(),
+    body: JSON.stringify({ status }),
+  });
+
+  return handleResponse(res);
+}
+
+export async function deleteReport(reportId: number): Promise<void> {
+  const res = await fetch(`${BASE_URL}/reports/${reportId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+
+  await handleResponse<void>(res);
 }

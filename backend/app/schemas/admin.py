@@ -8,8 +8,8 @@ class AdminStatsResponse(BaseModel):
     broj_komentara: int
     broj_lajkova: int
     broj_albuma: int
+    broj_prijava: int
 
 
 class AdminBlockUserRequest(BaseModel):
     blokiran: bool
-

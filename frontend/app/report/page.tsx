@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { kreirajReport, getTrenutniKorisnik } from '@/lib/api';
 
 export default function ReportPage() {
-  const [jezik, setJezik] = useState('BS');
+  const [jezik, setJezik] = useState(() => {
+    if (typeof window === 'undefined') return 'BS';
+    return localStorage.getItem('izabraniJezik') || 'BS';
+  });
   const [email, setEmail] = useState('');
   const [tip, setTip] = useState<'PROBLEM' | 'SUGESTIJA'>('PROBLEM');
   const [poruka, setPoruka] = useState('');
@@ -13,9 +16,6 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const sacuvaniJezik = localStorage.getItem('izabraniJezik');
-    if (sacuvaniJezik) setJezik(sacuvaniJezik);
-
     getTrenutniKorisnik()
       .then((korisnik) => setEmail(korisnik.email))
       .catch(() => {});
@@ -43,6 +43,8 @@ export default function ReportPage() {
       greskaPolja: "Molimo popunite sva polja.",
       greskaPoruka: "Poruka mora imati najmanje 10 karaktera.",
       greskaServer: "Slanje nije uspjelo. Pokušajte ponovo.",
+      ERR_INVALID_REPORT_TYPE: "Odabran je neispravan tip poruke.",
+      ERR_REPORT_MESSAGE_TOO_SHORT: "Poruka mora imati najmanje 10 karaktera.",
       kontaktNaslov: "Brza pomoć",
       kontaktOpis: "Za hitne slučajeve možete kontaktirati podršku:",
       kontaktEmail: "support@eventphoto.demo",
@@ -63,6 +65,8 @@ export default function ReportPage() {
       greskaPolja: "Please fill in all fields.",
       greskaPoruka: "Message must contain at least 10 characters.",
       greskaServer: "Sending failed. Please try again.",
+      ERR_INVALID_REPORT_TYPE: "Selected message type is not valid.",
+      ERR_REPORT_MESSAGE_TOO_SHORT: "Message must contain at least 10 characters.",
       kontaktNaslov: "Quick support",
       kontaktOpis: "For urgent issues, you can contact support:",
       kontaktEmail: "support@eventphoto.demo",
@@ -95,8 +99,9 @@ export default function ReportPage() {
       setUspjeh(t.uspjeh);
       setPoruka('');
       setTip('PROBLEM');
-    } catch {
-      setGreska(t.greskaServer);
+    } catch (err: unknown) {
+      const kodGreske = err instanceof Error ? err.message : '';
+      setGreska((kodGreske && t[kodGreske as keyof typeof t]) || t.greskaServer);
     } finally {
       setLoading(false);
     }

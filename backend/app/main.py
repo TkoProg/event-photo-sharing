@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 import app.models
 from app.config import settings
 from app.database import kreiraj_tabele
-from app.routers import admin, albums, auth, comments, events, feed, photos
+from app.routers import admin, albums, auth, comments, events, feed, photos, reports
 
 
 app = FastAPI(title="Event Photo Sharing API")
@@ -41,12 +41,14 @@ def health():
 
 
 app.include_router(auth.router)
+app.include_router(reports.router)
 app.include_router(events.router)
 app.include_router(photos.router)
 app.include_router(comments.router)
 app.include_router(albums.router)
 app.include_router(feed.router)
 app.include_router(admin.router)
+
 
 
 Path(settings.upload_folder).mkdir(parents=True, exist_ok=True)

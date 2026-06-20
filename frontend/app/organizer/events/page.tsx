@@ -7,7 +7,7 @@ export default function EventsListPage() {
   const [jezik, setJezik] = useState('BS');
   const [uloga, setUloga] = useState<string | null>(null);
   
-  // Stanja za podatke sa backenda
+  
   const [eventi, setEventi] = useState<ApiEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [greska, setGreska] = useState('');
@@ -28,7 +28,7 @@ export default function EventsListPage() {
 
     window.addEventListener('storage', provjeriJezik);
 
-    // 2. Povlačenje stvarnih događaja sa backenda
+    
     const ucitajEvente = async () => {
       try {
         setLoading(true);
@@ -117,7 +117,7 @@ export default function EventsListPage() {
           </div>
         )}
 
-        {/* Prikaz Loading stanja dok se podaci skidaju */}
+        
         {loading ? (
           <div className="text-center text-gray-500 text-sm py-12 font-light animate-pulse">
             {t.ucitavanje}
@@ -128,7 +128,7 @@ export default function EventsListPage() {
             {mozeKreiratiEvent ? t.nemaEventa : t.nemaEventaBezKreiranja}
           </div>
         ) : (
-          /* ISPRAVNA PETLJA SA REALNIM PODACIMA */
+         
           <div className="grid gap-4">
             {eventi.map((event) => (
               <Link 

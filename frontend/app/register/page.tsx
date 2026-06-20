@@ -6,12 +6,13 @@ import { register, login } from '../../lib/api';
 
 export default function RegisterPage() {
   const router = useRouter();
+
   const [jezik, setJezik] = useState(() => {
     if (typeof window === 'undefined') return 'BS';
     return localStorage.getItem('izabraniJezik') ?? 'BS';
   });
-  const [uloga, setUloga] = useState<'ORGANIZATOR' | 'GOST'>('GOST');
 
+  const [uloga, setUloga] = useState<'ORGANIZATOR' | 'GOST'>('GOST');
   const [ime, setIme] = useState('');
   const [email, setEmail] = useState('');
   const [lozinka, setLozinka] = useState('');
@@ -47,11 +48,14 @@ export default function RegisterPage() {
 
     try {
       await register(ime, email, lozinka, uloga, jezik.toLowerCase());
-      const authData = await login(email, lozinka);
-      localStorage.setItem('token', authData.access_token);
+      await login(email, lozinka);
+
+      localStorage.removeItem('token');
+
       router.push('/dashboard');
     } catch (err: unknown) {
       const kodGreske = err instanceof Error ? err.message : '';
+
       if (kodGreske && t[kodGreske]) {
         setGreska(t[kodGreske]);
       } else {
@@ -72,11 +76,13 @@ export default function RegisterPage() {
       gost: "Gost",
       organizator: "Organizator",
       dugme: "Registruj se",
-      pitanje: "Veća imaš račun?",
+      pitanje: "Već imaš račun?",
       akcija: "Prijavi se",
       ucitavanje: "Registracija...",
       ERR_EMAIL_EXISTS: "Korisnik sa ovim emailom već postoji.",
-      ERR_ADMIN_PUBLIC_REGISTER: "Admin nalog se ne može javno registrovati."
+      ERR_ADMIN_PUBLIC_REGISTER: "Admin nalog se ne može javno registrovati.",
+      ERR_BAD_CREDENTIALS: "Pogrešan email ili lozinka.",
+      ERR_USER_BLOCKED: "Vaš korisnički nalog je blokiran."
     },
     EN: {
       podnaslov: "Create an account and choose your role.",
@@ -91,7 +97,9 @@ export default function RegisterPage() {
       akcija: "Sign in",
       ucitavanje: "Registering...",
       ERR_EMAIL_EXISTS: "A user with this email already exists.",
-      ERR_ADMIN_PUBLIC_REGISTER: "Admin accounts cannot be registered publicly."
+      ERR_ADMIN_PUBLIC_REGISTER: "Admin accounts cannot be registered publicly.",
+      ERR_BAD_CREDENTIALS: "Incorrect email or password.",
+      ERR_USER_BLOCKED: "Your account has been blocked."
     }
   };
 
@@ -132,6 +140,7 @@ export default function RegisterPage() {
             onChange={(e) => setIme(e.target.value)}
             className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" 
           />
+
           <input 
             type="email" 
             placeholder={t.placeholderEmail} 
@@ -139,6 +148,7 @@ export default function RegisterPage() {
             onChange={(e) => setEmail(e.target.value)}
             className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" 
           />
+
           <input 
             type="password" 
             placeholder={t.placeholderLozinka} 
@@ -146,6 +156,7 @@ export default function RegisterPage() {
             onChange={(e) => setLozinka(e.target.value)}
             className="w-full px-5 py-4 bg-black/50 border border-white/10 rounded-2xl focus:outline-none focus:border-gray-400 text-sm transition-all text-white placeholder:text-gray-500" 
           />
+
           <select
             value={uloga}
             onChange={(e) => setUloga(e.target.value as 'ORGANIZATOR' | 'GOST')}

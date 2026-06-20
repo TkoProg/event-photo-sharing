@@ -18,7 +18,7 @@ export default function CreateAlbumPage() {
         Number(eventId),
         albumName,
         '',
-        'OBICNI'
+        'FINALNI'
       );
       router.push(`/events/${eventId}?tab=albums`);
     } catch (err) {

@@ -2,7 +2,7 @@
 // src/lib/api.ts
 // Jedino mjesto gdje se radi komunikacija sa backendom.
 // Sve stranice importuju funkcije odavde — nikad direktno fetch.
-// Sada autentifikacija ide preko HttpOnly cookie-a.
+// Autentifikacija ide preko HttpOnly cookie-a (credentials: 'include').
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BASE_URL = 'http://localhost:8000';
@@ -86,6 +86,7 @@ export interface ApiAdminStats {
   broj_albuma: number;
   broj_prijava: number;
 }
+
 export interface ApiReport {
   id: number;
   email: string;
@@ -99,8 +100,6 @@ export interface ApiReport {
 }
 
 // ─── Helper: JSON header ──────────────────────────────────────────────────────
-// Token više NE uzimamo iz localStorage.
-// Backend sada čita token iz HttpOnly cookie-a.
 
 function authHeaders(): HeadersInit {
   return {
@@ -115,19 +114,17 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
   if (!res.ok) {
     let detail = 'Greška na serveru';
-
     try {
       const error = text ? JSON.parse(text) : null;
       detail = error?.detail || detail;
     } catch {
       detail = text || detail;
     }
-
     throw new Error(detail);
   }
 
   if (!text) {
-    return undefined as T;
+    return null as unknown as T;
   }
 
   return JSON.parse(text) as T;
@@ -142,24 +139,16 @@ export async function login(email: string, lozinka: string): Promise<{ access_to
     headers: authHeaders(),
     body: JSON.stringify({ email, lozinka }),
   });
-
   return handleResponse(res);
 }
 
-export async function register(
-  ime: string,
-  email: string,
-  lozinka: string,
-  uloga: 'ORGANIZATOR' | 'GOST',
-  jezik: string
-): Promise<ApiKorisnik> {
+export async function register(ime: string, email: string, lozinka: string, uloga: 'ORGANIZATOR' | 'GOST', jezik: string): Promise<ApiKorisnik> {
   const res = await fetch(`${BASE_URL}/auth/register`, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(),
     body: JSON.stringify({ ime, email, lozinka, uloga, jezik }),
   });
-
   return handleResponse(res);
 }
 
@@ -169,19 +158,16 @@ export async function getTrenutniKorisnik(): Promise<ApiKorisnik> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
 export async function logout(): Promise<void> {
-  localStorage.removeItem('token');
-
+  localStorage.removeItem('token'); // Čistimo i local storage iz predostrožnosti
   const res = await fetch(`${BASE_URL}/auth/logout`, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(),
   });
-
   await handleResponse<{ message: string }>(res);
 }
 
@@ -193,7 +179,6 @@ export async function getMojiEventi(): Promise<ApiEvent[]> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
@@ -203,23 +188,16 @@ export async function getEvent(id: number): Promise<ApiEvent> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
-export async function kreirajEvent(
-  naziv: string,
-  datum: string,
-  lokacija: string,
-  opis: string
-): Promise<ApiEvent> {
+export async function kreirajEvent(naziv: string, datum: string, lokacija: string, opis: string): Promise<ApiEvent> {
   const res = await fetch(`${BASE_URL}/events`, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(),
     body: JSON.stringify({ naziv, datum, lokacija, opis }),
   });
-
   return handleResponse(res);
 }
 
@@ -230,7 +208,6 @@ export async function updateEvent(id: number, podaci: Partial<ApiEvent>): Promis
     headers: authHeaders(),
     body: JSON.stringify(podaci),
   });
-
   return handleResponse(res);
 }
 
@@ -240,7 +217,6 @@ export async function deleteEvent(id: number): Promise<void> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   await handleResponse<void>(res);
 }
 
@@ -251,7 +227,6 @@ export async function pridruziSeEventu(kod: string): Promise<ApiEvent> {
     headers: authHeaders(),
     body: JSON.stringify({ kod }),
   });
-
   return handleResponse(res);
 }
 
@@ -261,7 +236,6 @@ export async function getUcesnici(eventId: number): Promise<ApiKorisnik[]> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
@@ -271,7 +245,6 @@ export async function ukloniUcesnika(eventId: number, korisnikId: number): Promi
     credentials: 'include',
     headers: authHeaders(),
   });
-
   await handleResponse<void>(res);
 }
 
@@ -283,7 +256,6 @@ export async function getFotografije(eventId: number): Promise<ApiFotografija[]>
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
@@ -293,7 +265,6 @@ export async function getFotografija(photoId: number): Promise<ApiFotografija> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
@@ -304,11 +275,8 @@ export async function uploadFotografije(eventId: number, files: File[]): Promise
   const res = await fetch(`${BASE_URL}/events/${eventId}/photos`, {
     method: 'POST',
     credentials: 'include',
-    // VAŽNO: ne stavljamo Content-Type za FormData.
-    // Browser ga sam postavlja.
     body: formData,
   });
-
   return handleResponse(res);
 }
 
@@ -318,7 +286,6 @@ export async function deleteFotografija(photoId: number): Promise<void> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   await handleResponse<void>(res);
 }
 
@@ -328,7 +295,6 @@ export async function toggleFavorit(photoId: number): Promise<ApiFotografija> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
@@ -338,7 +304,6 @@ export async function likeFotografija(photoId: number): Promise<ApiFotografija> 
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
@@ -348,7 +313,6 @@ export async function unlikeFotografija(photoId: number): Promise<ApiFotografija
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
@@ -360,7 +324,6 @@ export async function getKomentari(photoId: number): Promise<ApiKomentar[]> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
@@ -371,7 +334,6 @@ export async function dodajKomentar(photoId: number, sadrzaj: string): Promise<A
     headers: authHeaders(),
     body: JSON.stringify({ sadrzaj }),
   });
-
   return handleResponse(res);
 }
 
@@ -381,7 +343,6 @@ export async function deleteKomentar(komentarId: number): Promise<void> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   await handleResponse<void>(res);
 }
 
@@ -394,7 +355,6 @@ export async function dodajTag(photoId: number, oznaceniKorisnikId: number): Pro
     headers: authHeaders(),
     body: JSON.stringify({ oznaceni_korisnik_id: oznaceniKorisnikId }),
   });
-
   return handleResponse(res);
 }
 
@@ -404,59 +364,46 @@ export async function deleteTag(tagId: number): Promise<void> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   await handleResponse<void>(res);
 }
 
 // ─── ALBUMI ───────────────────────────────────────────────────────────────────
 
 export async function getAlbumi(eventId: number): Promise<ApiAlbum[]> {
-  const res = await fetch(`${BASE_URL}/events/${eventId}/albums`, {
+  const res = await fetch(`${BASE_URL}/events/${eventId}/albums?t=${Date.now()}`, {
     method: 'GET',
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
 export async function getAlbum(albumId: number): Promise<ApiAlbumDetalji> {
-  const res = await fetch(`${BASE_URL}/albums/${albumId}`, {
+  const res = await fetch(`${BASE_URL}/albums/${albumId}?t=${Date.now()}`, {
     method: 'GET',
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
-export async function kreirajAlbum(
-  eventId: number,
-  naziv: string,
-  opis: string,
-  tip: 'OBICNI' | 'FINALNI'
-): Promise<ApiAlbum> {
+export async function kreirajAlbum(eventId: number, naziv: string, opis: string, tip: 'OBICNI' | 'FINALNI'): Promise<ApiAlbum> {
   const res = await fetch(`${BASE_URL}/albums`, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(),
     body: JSON.stringify({ event_id: eventId, naziv, opis, tip }),
   });
-
   return handleResponse(res);
 }
 
-export async function dodajFotografijaUAlbum(
-  albumId: number,
-  fotografijaId: number
-): Promise<ApiAlbumDetalji> {
+export async function dodajFotografijaUAlbum(albumId: number, fotografijaId: number): Promise<ApiAlbumDetalji> {
   const res = await fetch(`${BASE_URL}/albums/${albumId}/photos`, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(),
     body: JSON.stringify({ fotografija_id: fotografijaId }),
   });
-
   return handleResponse(res);
 }
 
@@ -466,7 +413,6 @@ export async function ukloniFotografijaIzAlbuma(albumId: number, photoId: number
     credentials: 'include',
     headers: authHeaders(),
   });
-
   await handleResponse<void>(res);
 }
 
@@ -477,7 +423,6 @@ export async function objaviAlbum(albumId: number): Promise<ApiAlbum> {
     headers: authHeaders(),
     body: JSON.stringify({}),
   });
-
   return handleResponse(res);
 }
 
@@ -487,7 +432,6 @@ export async function deleteAlbum(albumId: number): Promise<void> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   await handleResponse<void>(res);
 }
 
@@ -497,7 +441,6 @@ export async function getJavniAlbum(shareCode: string): Promise<ApiAlbumDetalji>
   const res = await fetch(`${BASE_URL}/share/albums/${shareCode}`, {
     method: 'GET',
   });
-
   return handleResponse(res);
 }
 
@@ -509,7 +452,6 @@ export async function getFeed(): Promise<ApiFotografija[]> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
@@ -521,7 +463,6 @@ export async function getAdminStats(): Promise<ApiAdminStats> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
@@ -531,21 +472,16 @@ export async function getAdminUsers(): Promise<ApiKorisnik[]> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
-export async function toggleBlokirajKorisnika(
-  korisnikId: number,
-  blokiran: boolean
-): Promise<ApiKorisnik> {
+export async function toggleBlokirajKorisnika(korisnikId: number, blokiran: boolean): Promise<ApiKorisnik> {
   const res = await fetch(`${BASE_URL}/admin/users/${korisnikId}/block`, {
     method: 'PUT',
     credentials: 'include',
     headers: authHeaders(),
     body: JSON.stringify({ blokiran }),
   });
-
   return handleResponse(res);
 }
 
@@ -555,24 +491,18 @@ export async function deleteAdminUser(korisnikId: number): Promise<void> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   await handleResponse<void>(res);
 }
 
 // ─── REPORT / SUPPORT ────────────────────────────────────────────────────────
 
-export async function kreirajReport(
-  email: string,
-  tip: 'PROBLEM' | 'SUGESTIJA',
-  poruka: string
-): Promise<ApiReport> {
+export async function kreirajReport(email: string, tip: 'PROBLEM' | 'SUGESTIJA', poruka: string): Promise<ApiReport> {
   const res = await fetch(`${BASE_URL}/reports`, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(),
     body: JSON.stringify({ email, tip, poruka }),
   });
-
   return handleResponse(res);
 }
 
@@ -582,21 +512,16 @@ export async function getReporti(): Promise<ApiReport[]> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   return handleResponse(res);
 }
 
-export async function promijeniStatusReporta(
-  reportId: number,
-  status: 'OTVORENO' | 'RIJESENO'
-): Promise<ApiReport> {
+export async function promijeniStatusReporta(reportId: number, status: 'OTVORENO' | 'RIJESENO'): Promise<ApiReport> {
   const res = await fetch(`${BASE_URL}/reports/${reportId}/status`, {
     method: 'PUT',
     credentials: 'include',
     headers: authHeaders(),
     body: JSON.stringify({ status }),
   });
-
   return handleResponse(res);
 }
 
@@ -606,6 +531,5 @@ export async function deleteReport(reportId: number): Promise<void> {
     credentials: 'include',
     headers: authHeaders(),
   });
-
   await handleResponse<void>(res);
 }

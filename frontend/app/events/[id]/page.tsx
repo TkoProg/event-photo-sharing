@@ -5,9 +5,10 @@ import Link from 'next/link';
 import {
   getEvent, updateEvent, deleteEvent, deleteAlbum,
   getFotografije, toggleFavorit,
-  getAlbumi, dodajFotografijaUAlbum, getTrenutniKorisnik,
+  getAlbumi, getAlbum, dodajFotografijaUAlbum, getTrenutniKorisnik,
   ApiFotografija, ApiAlbum, getUcesnici, ApiKorisnik, ukloniUcesnika
 } from '@/lib/api'
+import { QRCodeSVG } from 'qrcode.react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Participant { id: number; name: string; }
@@ -24,7 +25,9 @@ type TabId = (typeof TABS_RAW)[number]['id'];
 const PREVODI = {
   BS: {
     nazad: '← Moji događaji', dobrodosli: 'Dobrodošli u kontrolnu ploču događaja.',
-    galerija: 'Galerija fotografija', dodajSlike: '+ Dodaj slike', zatvori: 'Zatvori',
+    galerija: 'Galerija medija',
+    dodajSlike: '+ Slike / Video',
+    galerija_prazna: 'Galerija je prazna. Budite prvi koji će dodati sliku ili video.', zatvori: 'Zatvori',
     pretrazi: 'Pretraži po tagu...', nemaTaga: 'Nema slika sa tim tagom.',
     dodajUAlbum: '+ Album', izaberiAlbum: 'Izaberi album:', nemaAlbuma: 'Nemaš još albuma.',
     odustani: 'Odustani', mojiAlbumi: 'Moji albumi', kreirajAlbum: '+ Kreiraj album',
@@ -43,14 +46,22 @@ const PREVODI = {
     dangerOpis: 'Ove akcije su trajne i nepovratne.', obrisiDogadjaj: 'Trajno izbriši događaj',
     sacuvajNaslov: 'Sačuvaj promjene', sacuvajPitanje: 'Da li želiš sačuvati izmjene?',
     brisanjeNaslov: '⚠️ Trajno brisanje', brisanjePitanje: 'Ova akcija briše događaj. Jesi li sigurna?',
-    izbrisi: 'Sačuvaj', modalOdustani: 'Odustani',
-    promjeneSacuvane: 'Promjene sačuvane! ✅', greska: 'Greška. Pokušaj ponovo.',
+    izbrisi: 'Izbriši', modalOdustani: 'Odustani',
+    promjeneSacuvane: 'Promjene sačuvane!', greska: 'Greška. Pokušaj ponovo.',
     lajkova: 'lajkova', uFavoritima: '⭐ Favorit', dodajUFavorite: '☆ Dodaj u favorite',
-    aktivan: 'Aktivan', blokiran: 'Blokiran'
+    aktivan: 'Aktivan', blokiran: 'Blokiran', brisanjeAlbumaNaslov: '⚠️ Brisanje albuma',
+    brisanjeAlbumaPitanje: 'Ova akcija će obrisati album. Fotografije ostaju sačuvane. Jeste li sigurni?',
+    izbrisiDugme: 'Izbriši',
+    odustaniDugme: 'Odustani',
+    sameMoje: 'Samo ja',
+    sveSlike: 'Sve slike',
+    slikaDodataUAlbum: 'Slika dodata u album!',
   },
   EN: {
     nazad: '← My events', dobrodosli: 'Welcome to the event dashboard.',
-    galerija: 'Photo gallery', dodajSlike: '+ Add photos', zatvori: 'Close',
+    galerija: 'Media gallery',
+    dodajSlike: '+ Photos / Video',
+    galerija_prazna: 'The gallery is empty. Be the first to add a photo or video.', zatvori: 'Close',
     pretrazi: 'Search by tag...', nemaTaga: 'No photos with this tag.',
     dodajUAlbum: '+ Album', izaberiAlbum: 'Choose album:', nemaAlbuma: "No albums yet.",
     odustani: 'Cancel', mojiAlbumi: 'My albums', kreirajAlbum: '+ Create album',
@@ -69,10 +80,16 @@ const PREVODI = {
     dangerOpis: 'These actions are permanent.', obrisiDogadjaj: 'Permanently delete event',
     sacuvajNaslov: 'Save changes', sacuvajPitanje: 'Save your changes?',
     brisanjeNaslov: '⚠️ Delete', brisanjePitanje: 'This will delete the event. Are you sure?',
-    izbrisi: 'Save', modalOdustani: 'Cancel',
-    promjeneSacuvane: 'Changes saved! ✅', greska: 'Error. Please try again.',
+    izbrisi: 'Delete', modalOdustani: 'Cancel',
+    promjeneSacuvane: 'Changes saved!', greska: 'Error. Please try again.',
     lajkova: 'likes', uFavoritima: '⭐ Favorite', dodajUFavorite: '☆ Add to favorites',
-    aktivan: 'Active', blokiran: 'Blocked'
+    aktivan: 'Active', blokiran: 'Blocked', brisanjeAlbumaNaslov: '⚠️ Delete album',
+    brisanjeAlbumaPitanje: 'This will delete the album. Photos remain saved. Are you sure?',
+    izbrisiDugme: 'Delete',
+    odustaniDugme: 'Cancel',
+    sameMoje: 'Only me',
+    sveSlike: 'All photos',
+    slikaDodataUAlbum: 'Photo added to album!',
   }
 };
 type T = typeof PREVODI.BS;
@@ -363,80 +380,147 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: 
 // ─── Tab: Albums ──────────────────────────────────────────────────────────────
 function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: any; mozeSve: boolean; jeAdmin: boolean }) {
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
+  const [albumCovers, setAlbumCovers] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [favCount, setFavCount] = useState(0);
+  const [favCover, setFavCover] = useState<string | null>(null);
   const [deleteAlbumModal, setDeleteAlbumModal] = useState<{ isOpen: boolean; albumId: number | null }>({ isOpen: false, albumId: null });
   const { message: toastMsg, show: showToast } = useToast();
 
   useEffect(() => {
     getAlbumi(Number(eventId))
-      .then(setAlbums)
+      .then(async (albs) => {
+        setAlbums(albs);
+        const covers: Record<number, string> = {};
+        await Promise.all(albs.map(async (a) => {
+          if (a.broj_fotografija > 0) {
+            try {
+              const det = await getAlbum(a.id);
+              if (det.fotografije?.length > 0) covers[a.id] = det.fotografije[0].url;
+            } catch {}
+          }
+        }));
+        setAlbumCovers(covers);
+      })
       .catch(() => showToast(t.greska))
       .finally(() => setLoading(false));
-      
+
     getFotografije(Number(eventId))
-      .then(photos => setFavCount(photos.filter(p => p.favorit).length))
+      .then(photos => {
+        const favs = photos.filter(p => p.favorit);
+        setFavCount(favs.length);
+        if (favs.length > 0) setFavCover(favs[0].url);
+      })
       .catch(() => {});
   }, [eventId]);
 
-  const allAlbums = [
-    { id: 'favorites', naziv: t.favoriti, broj_fotografija: favCount },
-    ...albums,
-  ];
-
   if (loading) return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {[1,2,3].map(i => <div key={i} className="h-24 rounded-3xl bg-white/5 animate-pulse" />)}
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {[1,2,3,4].map(i => <div key={i} className="aspect-square rounded-2xl bg-white/5 animate-pulse" />)}
     </div>
   );
 
+  const allAlbums: ApiAlbum[] = [
+    { id: 'favorites' as any, naziv: t.favoriti, broj_fotografija: favCount, javno: false, event_id: Number(eventId), opis: '', tip: 'OBICNI', share_code: null },
+    ...albums,
+  ];
+
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-bold">{t.mojiAlbumi}</h2>
+    <div className="animate-in fade-in duration-500">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">{t.mojiAlbumi}</h2>
         {mozeSve && (
           <Link href={`/events/${eventId}/albums/create`}
-            className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all active:scale-95">
+            className="bg-white text-black px-5 py-2 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all active:scale-95">
             {t.kreirajAlbum}
           </Link>
         )}
       </div>
 
-      {allAlbums.length === 1 && favCount === 0 ? (
-        <p className="text-gray-500 italic">{t.albumPrazan}</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
-          {allAlbums.map(album => (
-            <div key={album.id} className="bg-white/5 p-5 md:p-6 rounded-3xl relative border border-white/5 hover:border-white/10 transition-all flex items-center gap-4 group">
-              
-              {/* Ikonica fascikle (ili zvijezda za favorite) */}
-              <div className="text-4xl shrink-0 transition-transform duration-300 group-hover:scale-110">
-                {album.id === 'favorites' ? '⭐' : '📁'}
-              </div>
-              
-              <div className="flex-grow min-w-0 pr-6">
-                <Link href={`/events/${eventId}/albums/${album.id}`} className="block">
-                  <h3 className="text-lg md:text-xl font-bold hover:underline truncate">{album.naziv}</h3>
-                  <p className="text-xs text-gray-500 mt-1">{album.broj_fotografija} {t.fotografija}</p>
-                </Link>
-              </div>
+      {/* Grid se sada UVIJEK prikazuje, pa će Favoriti uvijek biti tu */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+        {allAlbums.map(album => {
+          const isFav = String(album.id) === 'favorites';
+          const cover = isFav ? favCover : albumCovers[Number(album.id)];
 
-              {/* Brisanje — samo admin, i ne za favorites */}
-              {jeAdmin && album.id !== 'favorites' && (
-                <button
-                  onClick={() => setDeleteAlbumModal({ isOpen: true, albumId: Number(album.id) })}
-                  className="absolute top-3 right-3 md:top-4 md:right-4 text-gray-600 hover:text-red-500 transition-colors p-1"
-                  title="Obriši album"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                </button>
+          return (
+            <div key={album.id} className="relative group">
+              <Link href={`/events/${eventId}/albums/${album.id}`}>
+                <div className={`aspect-square rounded-2xl overflow-hidden border transition-all duration-300 relative ${
+                  isFav
+                    ? 'border-yellow-500/30 hover:border-yellow-500/60'
+                    : 'border-white/5 hover:border-white/20'
+                }`}>
+                  {/* Cover slika ili placeholder */}
+                  {cover ? (
+                    <img
+                      src={cover}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      alt={album.naziv}
+                    />
+                  ) : (
+                    <div className={`w-full h-full flex items-center justify-center ${
+                      isFav ? 'bg-yellow-500/5' : 'bg-white/[0.03]'
+                    }`}>
+                      {isFav ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" className="text-yellow-500/40">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/10">
+                          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                          <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Gradient overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+
+                  {/* Favoriti badge */}
+                  {isFav && (
+                    <div className="absolute top-2.5 left-2.5 bg-yellow-500/20 backdrop-blur-md border border-yellow-500/30 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] text-yellow-400 font-bold">⭐ Favoriti</span>
+                    </div>
+                  )}
+
+                  {/* Javno badge */}
+                  {!isFav && album.javno && (
+                    <div className="absolute top-2.5 left-2.5 bg-green-500/20 backdrop-blur-md border border-green-500/20 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] text-green-400 font-bold">● Javno</span>
+                    </div>
+                  )}
+
+                  {/* Info ispod */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3">
+                    <p className="text-white font-semibold text-sm truncate leading-tight">{album.naziv}</p>
+                    <p className="text-white/50 text-[11px] mt-0.5">{album.broj_fotografija} {t.fotografija}</p>
+                  </div>
+                </div>
+              </Link>
+
+              {/* Akcije — pojave se na hoveru */}
+              {mozeSve && !isFav && (
+                <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  {/* Brisanje — samo admin */}
+                  {jeAdmin && (
+                    <button
+                      onClick={e => { e.preventDefault(); setDeleteAlbumModal({ isOpen: true, albumId: Number(album.id) }); }}
+                      className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/60 hover:text-red-400 hover:border-red-500/30 transition-all"
+                      title="Obriši album"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {/* Confirm modal za brisanje albuma */}
       <ConfirmModal
         isOpen={deleteAlbumModal.isOpen}
         title={t.brisanjeAlbumaNaslov}
@@ -552,13 +636,13 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
 }
 
 // ─── Tab: Settings ────────────────────────────────────────────────────────────
-function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
-  const router = useRouter();
+function SettingsTab({ eventId, t }: { eventId: string; t: any }) {
   const [form, setForm] = useState({ naziv: '', datum: '', lokacija: '', opis: '', aktivan: true, kod: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveModal, setSaveModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const { message: toastMsg, show: showToast } = useToast();
 
   useEffect(() => {
@@ -572,7 +656,7 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
     setSaving(true);
     try {
       const { kod, ...formBezKoda } = form;
-    await updateEvent(Number(eventId), formBezKoda);
+      await updateEvent(Number(eventId), formBezKoda);
       showToast(t.promjeneSacuvane);
     } catch { showToast(t.greska); }
     finally { setSaving(false); setSaveModal(false); }
@@ -596,17 +680,21 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
 
   return (
     <div className="max-w-xl space-y-10 animate-in fade-in duration-500 pb-20">
+
+      {/* Osnovne informacije */}
       <section className="space-y-6">
         <div>
           <h3 className="text-3xl font-extrabold tracking-tight">{t.osnovneInfo}</h3>
           <p className="text-gray-500 text-sm mt-1">{t.osnovneInfoOpis}</p>
         </div>
         <div className="space-y-4">
-          <FormField label={t.nazivDogadjaja} icon="✏️" value={form.naziv} onChange={e => setForm({ ...form, naziv: e.target.value })} placeholder="Svadba..." />
-          <FormField label={t.datum} icon="🗓️" type="date" value={form.datum} onChange={e => setForm({ ...form, datum: e.target.value })} />
-          <FormField label={t.lokacija} icon="📍" value={form.lokacija} onChange={e => setForm({ ...form, lokacija: e.target.value })} placeholder="Sarajevo..." />
+          <FormField label={t.nazivDogadjaja} icon="✏️" value={form.naziv} onChange={(e: any) => setForm({ ...form, naziv: e.target.value })} placeholder="Svadba..." />
+          <FormField label={t.datum} icon="🗓️" type="date" value={form.datum} onChange={(e: any) => setForm({ ...form, datum: e.target.value })} />
+          <FormField label={t.lokacija} icon="📍" value={form.lokacija} onChange={(e: any) => setForm({ ...form, lokacija: e.target.value })} placeholder="Sarajevo..." />
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-gray-500 tracking-wider uppercase flex items-center gap-1.5 ml-1"><span>📝</span> {t.opis}</label>
+            <label className="text-xs font-semibold text-gray-500 tracking-wider uppercase flex items-center gap-1.5 ml-1">
+              <span>📝</span> {t.opis}
+            </label>
             <textarea value={form.opis} onChange={e => setForm({ ...form, opis: e.target.value })}
               className="w-full bg-[#111] border border-white/5 p-4 rounded-3xl text-white text-sm focus:border-white/20 transition-all placeholder:text-gray-700 min-h-[100px]"
               placeholder="Kratki opis..." />
@@ -614,6 +702,31 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
         </div>
       </section>
 
+      {/* ─── Pristup za goste + QR ─────────────────────────────────────────── */}
+      <section className="space-y-6">
+        <div>
+          <h3 className="text-3xl font-extrabold tracking-tight">Pristup za goste</h3>
+          <p className="text-gray-500 text-sm mt-1">Podijelite ovaj kod ili QR sa gostima kako bi ušli u događaj.</p>
+        </div>
+        <div className="bg-[#111] p-5 md:p-6 rounded-3xl border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <p className="text-xs text-gray-400 mb-1 text-center sm:text-left">Pristupni kod događaja:</p>
+            <p className="text-3xl md:text-4xl font-black tracking-widest text-white text-center sm:text-left">{form.kod}</p>
+          </div>
+          <button
+            onClick={() => setShowQR(true)}
+            className="w-full sm:w-auto bg-white text-black px-5 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 text-sm shadow-lg active:scale-95">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <rect x="7" y="7" width="3" height="3"/><rect x="14" y="7" width="3" height="3"/>
+              <rect x="7" y="14" width="3" height="3"/><rect x="14" y="14" width="3" height="3"/>
+            </svg>
+            Prikaži QR kod
+          </button>
+        </div>
+      </section>
+
+      {/* Privatnost */}
       <section className="space-y-6">
         <div>
           <h3 className="text-3xl font-extrabold tracking-tight">{t.privatnost}</h3>
@@ -634,6 +747,7 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
         </div>
       </section>
 
+      {/* Sačuvaj dugme */}
       <button onClick={() => setSaveModal(true)} disabled={saving}
         className="w-full bg-white text-black py-4 rounded-full font-bold hover:bg-gray-200 transition-all text-sm active:scale-[0.98] disabled:opacity-50">
         {saving ? '...' : t.sacuvajPromjene}
@@ -641,6 +755,7 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
 
       <div className="h-px bg-white/5 w-full my-12" />
 
+      {/* Danger Zone */}
       <section className="space-y-6">
         <div>
           <h3 className="text-3xl font-extrabold tracking-tight text-red-500">{t.dangerZone}</h3>
@@ -652,8 +767,53 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
         </button>
       </section>
 
-      <ConfirmModal isOpen={saveModal} title={t.sacuvajNaslov} message={t.sacuvajPitanje} t={t} onClose={() => setSaveModal(false)} onConfirm={handleSave} />
-      <ConfirmModal isOpen={deleteModal} title={t.brisanjeNaslov} message={t.brisanjePitanje} t={t} onClose={() => setDeleteModal(false)} onConfirm={handleDelete} />
+      {/* ─── QR Modal ──────────────────────────────────────────────────────── */}
+      {showQR && form.kod && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowQR(false)}>
+          <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 flex flex-col items-center max-w-sm w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <h3 className="text-2xl font-bold mb-6">Ulaznica za događaj</h3>
+            <div className="bg-white p-4 rounded-2xl mb-6 shadow-2xl">
+              {/* @ts-ignore */}
+              <QRCodeSVG
+                value={`${window.location.origin}/join?code=${form.kod}`}
+                size={200}
+                level="H"
+              />
+            </div>
+            <div className="bg-black/50 px-6 py-2.5 rounded-full border border-white/10 mb-8">
+              <span className="font-mono text-2xl tracking-widest text-white font-bold">{form.kod}</span>
+            </div>
+            <button onClick={() => setShowQR(false)}
+              className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold transition-all text-sm">
+              Zatvori
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modali za potvrdu */}
+      <ConfirmModal
+        isOpen={saveModal}
+        title={t.sacuvajNaslov}
+        message={t.sacuvajPitanje}
+        confirmLabel="Sačuvaj"
+        cancelLabel="Odustani"
+        danger={false}
+        onClose={() => setSaveModal(false)}
+        onConfirm={handleSave}
+      />
+      <ConfirmModal
+        isOpen={deleteModal}
+        title={t.brisanjeNaslov}
+        message={t.brisanjePitanje}
+        confirmLabel={t.izbrisiDugme ?? 'Izbriši'}
+        cancelLabel={t.odustaniDugme ?? 'Odustani'}
+        danger={true}
+        onClose={() => setDeleteModal(false)}
+        onConfirm={handleDelete}
+      />
       <Toast message={toastMsg} />
     </div>
   );

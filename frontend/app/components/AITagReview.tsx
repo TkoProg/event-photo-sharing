@@ -14,6 +14,7 @@ const PREVODI = {
     prikaziSve: 'Prikaži sve',
     sakrij: 'Sakrij',
     noviTagovi: 'Novi AI tagovi su dostupni!',
+    nemaTagova: 'AI nije predložio tagove za ovu sliku.',
   },
   EN: {
     aiTagovi: '🤖 AI Tags',
@@ -26,6 +27,7 @@ const PREVODI = {
     prikaziSve: 'Show all',
     sakrij: 'Hide',
     noviTagovi: 'New AI tags are available!',
+    nemaTagova: 'AI did not suggest tags for this photo.',
   }
 };
 
@@ -49,8 +51,9 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
     if (initialPhotoIdRef.current !== fotografija.id) {
       initialPhotoIdRef.current = fotografija.id;
       autoStartedRef.current = false;
-      setAITagovi(fotografija.ai_tagovi || []);
+      setError(null);
     }
+    setAITagovi(fotografija.ai_tagovi || []);
   }, [fotografija.id, fotografija.ai_tagovi]);
 
   useEffect(() => {
@@ -59,11 +62,15 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
 
     autoStartedRef.current = true;
     void (async () => {
+      setLoading(true);
+      setError(null);
       try {
         await analizirajSliku(fotografija.id);
         onRefresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Greška pri analizi');
+      } finally {
+        setLoading(false);
       }
     })();
   }, [fotografija.ai_tagovi, fotografija.id, onRefresh]);
@@ -148,7 +155,7 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
 
   if (aiTagovi.length === 0) {
     return (
-      <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-6">
+      <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-6 space-y-3">
         <button
           onClick={handleAnalyze}
           disabled={loading}
@@ -156,6 +163,14 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
         >
           {loading ? t.ucitavanje : t.analizirajSliku}
         </button>
+        {error && (
+          <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            {error}
+          </p>
+        )}
+        {!loading && !error && autoStartedRef.current && (
+          <p className="text-sm text-blue-100/80">{t.nemaTagova}</p>
+        )}
       </div>
     );
   }
@@ -280,8 +295,6 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
     </div>
   );
 }
-
-
 
 
 

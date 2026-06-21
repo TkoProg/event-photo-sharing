@@ -119,6 +119,11 @@ def analiziraj_sliku(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Fotografija nije pronađena na disku.",
         )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -295,5 +300,4 @@ def obrisi_ai_tag(
     session.refresh(fotografija)
 
     return fotografija_u_response(session, fotografija, korisnik)
-
 

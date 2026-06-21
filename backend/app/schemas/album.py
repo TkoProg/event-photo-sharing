@@ -27,6 +27,6 @@ class AlbumResponse(BaseModel):
 
 
 class AlbumDetailResponse(BaseModel):
-    album: AlbumResponse
     fotografije: list[FotografijaResponse]
-
+    javno: bool
+    share_code: str | None = None

@@ -1,6 +1,10 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
+from app.config import settings
 from app.database import get_session
 from app.models.event import Event
 from app.models.fotografija import Fotografija
@@ -126,6 +130,37 @@ def detalji_fotografije(
         )
 
     return fotografija_u_response(session, fotografija, korisnik)
+
+
+@router.get("/photos/{photo_id}/download")
+def download_fotografije(
+    photo_id: int,
+    session: Session = Depends(get_session),
+    korisnik: Korisnik = Depends(get_trenutni_korisnik),
+):
+    fotografija = pronadji_fotografiju_ili_greska(session, photo_id)
+    event = session.get(Event, fotografija.event_id)
+
+    if event is None or not korisnik_ima_pristup_eventu(session, korisnik, event):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nemate pristup ovoj fotografiji.",
+        )
+
+    putanja_fajla = Path(settings.upload_folder) / fotografija.putanja
+
+    if not putanja_fajla.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Fajl ne postoji.",
+        )
+
+    naziv_za_download = fotografija.originalni_naziv or putanja_fajla.name
+
+    return FileResponse(
+        path=putanja_fajla,
+        filename=naziv_za_download,
+    )
 
 
 @router.delete("/photos/{photo_id}")

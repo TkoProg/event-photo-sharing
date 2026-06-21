@@ -144,6 +144,22 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return JSON.parse(text) as T;
 }
 
+function filenameFromContentDisposition(header: string | null): string | null {
+  if (!header) return null;
+
+  const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].replace(/^"|"$/g, ''));
+    } catch {
+      return utf8Match[1].replace(/^"|"$/g, '');
+    }
+  }
+
+  const regularMatch = header.match(/filename="?([^";]+)"?/i);
+  return regularMatch?.[1] ?? null;
+}
+
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 
 export async function login(email: string, lozinka: string): Promise<{ access_token: string; korisnik?: ApiKorisnik }> {
@@ -306,6 +322,24 @@ export async function getFotografija(photoId: number): Promise<ApiFotografija> {
   });
 
   return handleResponse(res);
+}
+
+export async function downloadFotografija(photoId: number): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${BASE_URL}/photos/${photoId}/download`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    await handleResponse<void>(res);
+  }
+
+  const blob = await res.blob();
+  const filename =
+    filenameFromContentDisposition(res.headers.get('Content-Disposition')) ??
+    `media-${photoId}`;
+
+  return { blob, filename };
 }
 
 export async function uploadFotografije(eventId: number, files: File[]): Promise<ApiFotografija[]> {

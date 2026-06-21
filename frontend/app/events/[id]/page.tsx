@@ -6,7 +6,8 @@ import {
   getEvent, updateEvent, deleteEvent, deleteAlbum,
   getFotografije, toggleFavorit,
   getAlbum, getAlbumi, dodajFotografijaUAlbum, getTrenutniKorisnik,
-  ApiFotografija, ApiAlbum, ApiAlbumDetalji, ApiAITag, getUcesnici, ApiKorisnik, ukloniUcesnika
+  ApiFotografija, ApiAlbum, ApiAlbumDetalji, ApiAITag, getUcesnici, ApiKorisnik, ukloniUcesnika,
+  downloadFotografija
 } from '@/lib/api'
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -66,6 +67,8 @@ const PREVODI = {
     pristupNaslov: 'Pristup za goste',
     pristupOpis: 'Podijelite ovaj kod ili QR sa gostima kako bi ušli u događaj.',
     pristupKodNaslov: 'Pristupni kod događaja:',
+    kopirajKod: 'Kopiraj kod',
+    kodKopiran: 'Kod je kopiran.',
     qrDugme: 'Prikaži QR kod',
     qrNaslov: 'Ulaznica za događaj',
   },
@@ -113,6 +116,8 @@ const PREVODI = {
     pristupNaslov: 'Guest access',
     pristupOpis: 'Share this code or QR with guests so they can join the event.',
     pristupKodNaslov: 'Event access code:',
+    kopirajKod: 'Copy code',
+    kodKopiran: 'Code copied.',
     qrDugme: 'Show QR code',
     qrNaslov: 'Event pass',
   }
@@ -254,13 +259,14 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: bo
     } catch { showToast(t.greska); }
   };
 
-  const handleDownload = async (url: string, name: string) => {
+  const handleDownload = async (photoId: number) => {
     try {
-      const res = await fetch(url);
-      const blob = await res.blob();
+      const { blob, filename } = await downloadFotografija(photoId);
+      const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob); link.download = name;
+      link.href = objectUrl; link.download = filename;
       document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
     } catch { showToast(t.greska); }
   };
 
@@ -388,7 +394,7 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: bo
                     ⭐
                   </button>
                 )}
-                <button onClick={() => handleDownload(foto.url, `slika-${foto.id}.jpg`)}
+                <button onClick={() => handleDownload(foto.id)}
                   className="px-2 py-1.5 md:px-3 md:py-2 bg-black border border-white/10 hover:bg-gray-800 rounded-lg text-white shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="md:w-4 md:h-4">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -697,6 +703,28 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
     }
   };
 
+  const handleCopyCode = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(form.kod);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = form.kod;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+
+      showToast(t.kodKopiran);
+    } catch {
+      showToast(t.greska);
+    }
+  };
+
   if (loading) return (
     <div className="max-w-xl space-y-4 animate-pulse">
       {[1,2,3,4].map(i => <div key={i} className="h-14 rounded-full bg-white/5" />)}
@@ -735,16 +763,28 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
             <p className="text-xs text-gray-400 mb-1 text-center sm:text-left">{t.pristupKodNaslov}</p>
             <p className="text-3xl md:text-4xl font-black tracking-widest text-white text-center sm:text-left">{form.kod}</p>
           </div>
-          <button
-            onClick={() => setShowQR(true)}
-            className="w-full sm:w-auto bg-white text-black px-5 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 text-sm shadow-lg active:scale-95">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <rect x="7" y="7" width="3" height="3"/><rect x="14" y="7" width="3" height="3"/>
-              <rect x="7" y="14" width="3" height="3"/><rect x="14" y="14" width="3" height="3"/>
-            </svg>
-            {t.qrDugme}
-          </button>
+          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="w-full sm:w-auto bg-white/5 border border-white/10 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-white hover:text-black transition-all flex items-center justify-center gap-2 text-sm active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              {t.kopirajKod}
+            </button>
+            <button
+              onClick={() => setShowQR(true)}
+              className="w-full sm:w-auto bg-white text-black px-5 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 text-sm shadow-lg active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <rect x="7" y="7" width="3" height="3"/><rect x="14" y="7" width="3" height="3"/>
+                <rect x="7" y="14" width="3" height="3"/><rect x="14" y="14" width="3" height="3"/>
+              </svg>
+              {t.qrDugme}
+            </button>
+          </div>
         </div>
       </section>
 

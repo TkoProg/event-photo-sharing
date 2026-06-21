@@ -5,14 +5,13 @@ import Link from 'next/link';
 import {
   getEvent, updateEvent, deleteEvent, deleteAlbum,
   getFotografije, toggleFavorit,
-  getAlbumi, dodajFotografijaUAlbum, getTrenutniKorisnik,
-  ApiFotografija, ApiAlbum, ApiAITag, ApiTag, getUcesnici, ApiKorisnik, ukloniUcesnika
+  getAlbum, getAlbumi, dodajFotografijaUAlbum, getTrenutniKorisnik,
+  ApiFotografija, ApiAlbum, ApiAlbumDetalji, ApiAITag, getUcesnici, ApiKorisnik, ukloniUcesnika
 } from '@/lib/api'
+import { QRCodeSVG } from 'qrcode.react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type GalleryPhoto = ApiFotografija & { tagovi?: ApiTag[]; ai_tagovi?: ApiAITag[] };
-type AlbumWithPhotos = ApiAlbum & { fotografije?: GalleryPhoto[] };
-type DashboardTexts = typeof PREVODI.BS;
+interface Participant { id: number; name: string; }
 
 const TABS_RAW = [
   { id: 'photos', bs: 'Fotografije', en: 'Photos' },
@@ -22,11 +21,12 @@ const TABS_RAW = [
 ] as const;
 type TabId = (typeof TABS_RAW)[number]['id'];
 
-// ─── Prijevodi ────────────────────────────────────────────────────────────────
 const PREVODI = {
   BS: {
     nazad: '← Moji događaji', dobrodosli: 'Dobrodošli u kontrolnu ploču događaja.',
-    galerija: 'Galerija fotografija', dodajSlike: '+ Dodaj slike', zatvori: 'Zatvori',
+    galerija: 'Galerija medija',
+    dodajSlike: '+ Slike / Video',
+    galerija_prazna: 'Galerija je prazna. Budite prvi koji će dodati sliku ili video.', zatvori: 'Zatvori',
     pretrazi: 'Pretraži po tagu...', nemaTaga: 'Nema slika sa tim tagom.',
     aiFilter: 'Filtriraj po AI tagovima',
     ocistiFilter: 'Očisti',
@@ -55,14 +55,25 @@ const PREVODI = {
     dangerOpis: 'Ove akcije su trajne i nepovratne.', obrisiDogadjaj: 'Trajno izbriši događaj',
     sacuvajNaslov: 'Sačuvaj promjene', sacuvajPitanje: 'Da li želiš sačuvati izmjene?',
     brisanjeNaslov: '⚠️ Trajno brisanje', brisanjePitanje: 'Ova akcija briše događaj. Jesi li sigurna?',
-    izbrisi: 'Sačuvaj', modalOdustani: 'Odustani',
-    promjeneSacuvane: 'Promjene sačuvane! ✅', greska: 'Greška. Pokušaj ponovo.',
+    izbrisi: 'Izbriši', modalOdustani: 'Odustani',
+    promjeneSacuvane: 'Promjene sačuvane!', greska: 'Greška. Pokušaj ponovo.',
     lajkova: 'lajkova', uFavoritima: '⭐ Favorit', dodajUFavorite: '☆ Dodaj u favorite',
-    aktivan: 'Aktivan', blokiran: 'Blokiran'
+    aktivan: 'Aktivan', blokiran: 'Blokiran',
+    sameMoje: 'Samo ja',
+    // ─── Prijevodi za QR i albume ─────────────────────────────────────────────
+    javnoStatus: 'Javno',
+    favoritiLabel: '⭐ Favoriti',
+    pristupNaslov: 'Pristup za goste',
+    pristupOpis: 'Podijelite ovaj kod ili QR sa gostima kako bi ušli u događaj.',
+    pristupKodNaslov: 'Pristupni kod događaja:',
+    qrDugme: 'Prikaži QR kod',
+    qrNaslov: 'Ulaznica za događaj',
   },
   EN: {
     nazad: '← My events', dobrodosli: 'Welcome to the event dashboard.',
-    galerija: 'Photo gallery', dodajSlike: '+ Add photos', zatvori: 'Close',
+    galerija: 'Media gallery',
+    dodajSlike: '+ Photos / Video',
+    galerija_prazna: 'The gallery is empty. Be the first to add a photo or video.', zatvori: 'Close',
     pretrazi: 'Search by tag...', nemaTaga: 'No photos with this tag.',
     aiFilter: 'Filter by AI tags',
     ocistiFilter: 'Clear',
@@ -91,23 +102,43 @@ const PREVODI = {
     dangerOpis: 'These actions are permanent.', obrisiDogadjaj: 'Permanently delete event',
     sacuvajNaslov: 'Save changes', sacuvajPitanje: 'Save your changes?',
     brisanjeNaslov: '⚠️ Delete', brisanjePitanje: 'This will delete the event. Are you sure?',
-    izbrisi: 'Save', modalOdustani: 'Cancel',
-    promjeneSacuvane: 'Changes saved! ✅', greska: 'Error. Please try again.',
+    izbrisi: 'Delete', modalOdustani: 'Cancel',
+    promjeneSacuvane: 'Changes saved!', greska: 'Error. Please try again.',
     lajkova: 'likes', uFavoritima: '⭐ Favorite', dodajUFavorite: '☆ Add to favorites',
-    aktivan: 'Active', blokiran: 'Blocked'
+    aktivan: 'Active', blokiran: 'Blocked',
+    sameMoje: 'Only me',
+    // ─── Prijevodi za QR i albume ─────────────────────────────────────────────
+    javnoStatus: 'Public',
+    favoritiLabel: '⭐ Favorites',
+    pristupNaslov: 'Guest access',
+    pristupOpis: 'Share this code or QR with guests so they can join the event.',
+    pristupKodNaslov: 'Event access code:',
+    qrDugme: 'Show QR code',
+    qrNaslov: 'Event pass',
   }
 };
 type T = typeof PREVODI.BS;
 
+// ─── Hooks ────────────────────────────────────────────────────────────────────
+function useLocalStorage<V>(key: string, init: V) {
+  const [val, setVal] = useState<V>(init);
+  useEffect(() => {
+    try { const s = localStorage.getItem(key); if (s) setVal(JSON.parse(s)); } catch {}
+  }, [key]);
+  const set = useCallback((v: V | ((p: V) => V)) => {
+    const toStore = v instanceof Function ? v(val) : v;
+    setVal(toStore); localStorage.setItem(key, JSON.stringify(toStore));
+  }, [key, val]);
+  return [val, set] as const;
+}
+
 function useKorisnik() {
   const [uloga, setUloga] = useState<string | null>(null);
-
   useEffect(() => {
     getTrenutniKorisnik()
       .then(k => setUloga(k.uloga))
       .catch(() => setUloga('GOST'));
   }, []);
-
   return uloga;
 }
 
@@ -122,7 +153,6 @@ function useToast() {
   return { message, show };
 }
 
-// ─── Shared Components ────────────────────────────────────────────────────────
 function Toast({ message }: { message: string | null }) {
   if (!message) return null;
   return (
@@ -171,9 +201,9 @@ function FormField({ label, icon, ...props }: React.InputHTMLAttributes<HTMLInpu
 }
 
 // ─── Tab: Photos ──────────────────────────────────────────────────────────────
-function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: DashboardTexts; mozeSve: boolean }) {
-  const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
-  const [albums, setAlbums] = useState<AlbumWithPhotos[]>([]);
+function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: boolean }) {
+  const [photos, setPhotos] = useState<ApiFotografija[]>([]);
+  const [albums, setAlbums] = useState<ApiAlbum[]>([]);
   const [ucesnici, setUcesnici] = useState<ApiKorisnik[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -340,14 +370,11 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: DashboardTexts
 
             return (
             <div key={foto.id} className="relative group flex flex-col">
-              
               <Link href={`/photos/${foto.id}`} className="relative z-0">
                 <div className="aspect-square overflow-hidden rounded-2xl bg-white/5 border border-white/10 cursor-pointer hover:border-white/30 transition-all">
                   <img src={foto.url} className="w-full h-full object-cover" alt="Slika" />
                 </div>
               </Link>
-
-              {/* Akcije ispod slike */}
               <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mt-2 md:mt-3">
                 {mozeSve && (
                   <button onClick={() => setSelectedPhotoId(foto.id === selectedPhotoId ? null : foto.id)}
@@ -355,14 +382,12 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: DashboardTexts
                     {t.dodajUAlbum}
                   </button>
                 )}
-                
                 {mozeSve && (
                   <button onClick={() => handleFavorit(foto)}
                     className={`px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm transition-all shrink-0 ${foto.favorit ? 'bg-yellow-500/20 text-yellow-400' : 'bg-white/10 hover:bg-white/20 text-gray-400'}`}>
                     ⭐
                   </button>
                 )}
-                
                 <button onClick={() => handleDownload(foto.url, `slika-${foto.id}.jpg`)}
                   className="px-2 py-1.5 md:px-3 md:py-2 bg-black border border-white/10 hover:bg-gray-800 rounded-lg text-white shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="md:w-4 md:h-4">
@@ -370,7 +395,7 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: DashboardTexts
                   </svg>
                 </button>
 
-                {tagoviOsoba.length > 0 && (
+                {(foto as any).tagovi?.length > 0 && (
                   <span className="ml-auto text-white/30 text-[10px] md:text-[11px] flex items-center gap-1 hover:text-white/60 cursor-help shrink-0"
                     title={`Označenih osoba: ${tagoviOsoba.length}`}>
                     {tagoviOsoba.length}
@@ -385,25 +410,21 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: DashboardTexts
                   </span>
                 )}
               </div>
-
-              {/* Modal za odabir albuma */}
               {selectedPhotoId === foto.id && (
                 <div ref={menuRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] bg-[#1a1a1a]/95 backdrop-blur-md border border-white/20 p-3 md:p-4 rounded-2xl z-20 shadow-2xl">
                   <p className="text-[10px] md:text-xs text-gray-400 mb-2">{t.izaberiAlbum}</p>
-                  
                   {albums.length === 0 && <p className="text-[10px] md:text-xs text-gray-600 italic">{t.nemaAlbuma}</p>}
-                  
                   <div className="max-h-32 md:max-h-40 overflow-y-auto space-y-1">
                     {albums.map(album => (
                       <button key={album.id}
                         onClick={async () => {
-                          const slikaVecPostoji = album.fotografije?.some((f) => f.id === foto.id);
+                          // RJEŠENJE ZA TYPESCRIPT GREŠKU (dodato: as any)
+                          const slikaVecPostoji = (album as any).fotografije?.some((f: any) => f.id === foto.id);
                           if (slikaVecPostoji) {
                             showToast('Ova slika je već u tom albumu! 📸');
                             setSelectedPhotoId(null);
                             return;
                           }
-
                           try {
                             await dodajFotografijaUAlbum(album.id, foto.id);
                             setAlbums(prev => prev.map(a => a.id === album.id ? { ...a, broj_fotografija: (a.broj_fotografija || 0) + 1 } : a));
@@ -416,7 +437,6 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: DashboardTexts
                       </button>
                     ))}
                   </div>
-                  
                   <button onClick={() => setSelectedPhotoId(null)} className="mt-2 w-full text-center py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] md:text-xs text-red-400 font-bold transition-colors">
                     {t.odustani}
                   </button>
@@ -433,42 +453,61 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: DashboardTexts
 }
 
 // ─── Tab: Albums ──────────────────────────────────────────────────────────────
-function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: DashboardTexts; mozeSve: boolean; jeAdmin: boolean }) {
+function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: T; mozeSve: boolean; jeAdmin: boolean }) {
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
+  const [albumCovers, setAlbumCovers] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [favCount, setFavCount] = useState(0);
+  const [favCover, setFavCover] = useState<string | null>(null);
   const [deleteAlbumModal, setDeleteAlbumModal] = useState<{ isOpen: boolean; albumId: number | null }>({ isOpen: false, albumId: null });
   const { message: toastMsg, show: showToast } = useToast();
 
   useEffect(() => {
     getAlbumi(Number(eventId))
-      .then(setAlbums)
+      .then(async (albs) => {
+        setAlbums(albs);
+        const covers: Record<number, string> = {};
+        await Promise.all(albs.map(async (a) => {
+          if (a.broj_fotografija > 0) {
+            try {
+              const det = await getAlbum(a.id);
+              if (det.fotografije?.length > 0) covers[a.id] = det.fotografije[0].url;
+            } catch {}
+          }
+        }));
+        setAlbumCovers(covers);
+      })
       .catch(() => showToast(t.greska))
       .finally(() => setLoading(false));
-      
+
     getFotografije(Number(eventId))
-      .then(photos => setFavCount(photos.filter(p => p.favorit).length))
+      .then(photos => {
+        const favs = photos.filter(p => p.favorit);
+        setFavCount(favs.length);
+        if (favs.length > 0) setFavCover(favs[0].url);
+      })
       .catch(() => {});
   }, [eventId, showToast, t.greska]);
 
-  const allAlbums = [
-    { id: 'favorites', naziv: t.favoriti, broj_fotografija: favCount },
-    ...albums,
-  ];
-
   if (loading) return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {[1,2,3].map(i => <div key={i} className="h-24 rounded-3xl bg-white/5 animate-pulse" />)}
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {[1,2,3,4].map(i => <div key={i} className="aspect-square rounded-2xl bg-white/5 animate-pulse" />)}
     </div>
   );
 
+  type AlbumListItem = Omit<ApiAlbum, 'id'> & { id: number | 'favorites' };
+  const allAlbums: AlbumListItem[] = [
+    { id: 'favorites', naziv: t.favoriti, broj_fotografija: favCount, javno: false, event_id: Number(eventId), opis: '', tip: 'OBICNI', share_code: null },
+    ...albums,
+  ];
+
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-bold">{t.mojiAlbumi}</h2>
+    <div className="animate-in fade-in duration-500">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">{t.mojiAlbumi}</h2>
         {mozeSve && (
           <Link href={`/events/${eventId}/albums/create`}
-            className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all active:scale-95">
+            className="bg-white text-black px-5 py-2 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all active:scale-95">
             {t.kreirajAlbum}
           </Link>
         )}
@@ -478,7 +517,10 @@ function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: Dashb
         <p className="text-gray-500 italic">{t.albumPrazan}</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
-          {allAlbums.map(album => (
+          {allAlbums.map(album => {
+            const isFav = album.id === 'favorites';
+
+            return (
             <div key={album.id} className="bg-white/5 p-5 md:p-6 rounded-3xl relative border border-white/5 hover:border-white/10 transition-all flex items-center gap-4 group">
               
               {/* Ikonica fascikle (ili zvijezda za favorite) */}
@@ -486,29 +528,32 @@ function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: Dashb
                 {album.id === 'favorites' ? '⭐' : '📁'}
               </div>
               
-                      <div className="grow min-w-0 pr-6">
+              <div className="flex-grow min-w-0 pr-6">
                 <Link href={`/events/${eventId}/albums/${album.id}`} className="block">
                   <h3 className="text-lg md:text-xl font-bold hover:underline truncate">{album.naziv}</h3>
                   <p className="text-xs text-gray-500 mt-1">{album.broj_fotografija} {t.fotografija}</p>
                 </Link>
               </div>
 
-              {/* Brisanje — samo admin, i ne za favorites */}
-              {jeAdmin && album.id !== 'favorites' && (
-                <button
-                  onClick={() => setDeleteAlbumModal({ isOpen: true, albumId: Number(album.id) })}
-                  className="absolute top-3 right-3 md:top-4 md:right-4 text-gray-600 hover:text-red-500 transition-colors p-1"
-                  title="Obriši album"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                </button>
+              {mozeSve && !isFav && (
+                <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  {jeAdmin && (
+                    <button
+                      onClick={e => { e.preventDefault(); setDeleteAlbumModal({ isOpen: true, albumId: Number(album.id) }); }}
+                      className="w-7 h-7 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/60 hover:text-red-400 hover:border-red-500/30 transition-all"
+                      title={t.izbrisiDugme}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Confirm modal za brisanje albuma */}
       <ConfirmModal
         isOpen={deleteAlbumModal.isOpen}
         title={t.brisanjeAlbumaNaslov}
@@ -549,20 +594,17 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
 
   const handleRemoveParticipant = async (participantId: number) => {
     setRemovingId(participantId);
-
     try {
       await ukloniUcesnika(Number(eventId), participantId);
       setParticipants(prev => prev.filter(p => p.id !== participantId));
       showToast(t.ucesnikUklonjen);
     } catch (err) {
       const message = err instanceof Error ? err.message : t.greska;
-
       if (message === "Ucesnik ne postoji na ovom eventu.") {
         setParticipants(prev => prev.filter(p => p.id !== participantId));
         showToast(t.ucesnikUklonjen);
         return;
       }
-
       showToast(message || t.greska);
     } finally {
       setRemovingId(null);
@@ -578,10 +620,7 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
       <h2 className="text-3xl font-bold">{t.ucesniciNaslov}</h2>
-      <h3 className="text-xl font-semibold">
-        {t.prijavljeni} ({participants.length})
-      </h3>
-
+      <h3 className="text-xl font-semibold">{t.prijavljeni} ({participants.length})</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {participants.length === 0 ? (
           <p className="text-gray-500 italic">{t.josNiko}</p>
@@ -592,9 +631,7 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
                 {p.ime.charAt(0).toUpperCase()}
               </div>
               <div>
-                <p className="font-semibold">
-                  {p.uloga === 'GOST' ? 'Gost' : p.ime}
-                </p>
+                <p className="font-semibold">{p.uloga === 'GOST' ? 'Gost' : p.ime}</p>
                 <p className="text-xs text-gray-400">{p.email}</p>
               </div>
               <div className="ml-auto">
@@ -602,16 +639,13 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
                   p.uloga === 'ADMIN' ? 'bg-red-500/20 text-red-400' :
                   p.uloga === 'ORGANIZATOR' ? 'bg-blue-500/20 text-blue-400' :
                   'bg-gray-500/20 text-gray-400'
-                }`}>
-                  {p.uloga}
-                </span>
+                }`}>{p.uloga}</span>
               </div>
               <button
                 type="button"
                 disabled={removingId === p.id}
                 onClick={() => handleRemoveParticipant(p.id)}
-                className="text-xs px-3 py-1.5 rounded-full border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+                className="text-xs px-3 py-1.5 rounded-full border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                 {removingId === p.id ? '...' : t.ukloniUcesnika}
               </button>
             </div>
@@ -625,11 +659,13 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
 
 // ─── Tab: Settings ────────────────────────────────────────────────────────────
 function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
+  const router = useRouter();
   const [form, setForm] = useState({ naziv: '', datum: '', lokacija: '', opis: '', aktivan: true, kod: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveModal, setSaveModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const { message: toastMsg, show: showToast } = useToast();
 
   useEffect(() => {
@@ -642,8 +678,8 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { kod: _kod, ...formBezKoda } = form;
-      await updateEvent(Number(eventId), formBezKoda);
+      const { kod, ...formBezKoda } = form;
+    await updateEvent(Number(eventId), formBezKoda);
       showToast(t.promjeneSacuvane);
     } catch {
       showToast(t.greska);
@@ -669,21 +705,46 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
 
   return (
     <div className="max-w-xl space-y-10 animate-in fade-in duration-500 pb-20">
+
       <section className="space-y-6">
         <div>
           <h3 className="text-3xl font-extrabold tracking-tight">{t.osnovneInfo}</h3>
           <p className="text-gray-500 text-sm mt-1">{t.osnovneInfoOpis}</p>
         </div>
         <div className="space-y-4">
-          <FormField label={t.nazivDogadjaja} icon="✏️" value={form.naziv} onChange={e => setForm({ ...form, naziv: e.target.value })} placeholder="Svadba..." />
-          <FormField label={t.datum} icon="🗓️" type="date" value={form.datum} onChange={e => setForm({ ...form, datum: e.target.value })} />
-          <FormField label={t.lokacija} icon="📍" value={form.lokacija} onChange={e => setForm({ ...form, lokacija: e.target.value })} placeholder="Sarajevo..." />
+          <FormField label={t.nazivDogadjaja} icon="✏️" value={form.naziv} onChange={(e: any) => setForm({ ...form, naziv: e.target.value })} placeholder="Svadba..." />
+          <FormField label={t.datum} icon="🗓️" type="date" value={form.datum} onChange={(e: any) => setForm({ ...form, datum: e.target.value })} />
+          <FormField label={t.lokacija} icon="📍" value={form.lokacija} onChange={(e: any) => setForm({ ...form, lokacija: e.target.value })} placeholder="Sarajevo..." />
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-gray-500 tracking-wider uppercase flex items-center gap-1.5 ml-1"><span>📝</span> {t.opis}</label>
-              <textarea value={form.opis} onChange={e => setForm({ ...form, opis: e.target.value })}
-              className="w-full bg-[#111] border border-white/5 p-4 rounded-3xl text-white text-sm focus:border-white/20 transition-all placeholder:text-gray-700 min-h-25"
+            <textarea value={form.opis} onChange={e => setForm({ ...form, opis: e.target.value })}
+              className="w-full bg-[#111] border border-white/5 p-4 rounded-3xl text-white text-sm focus:border-white/20 transition-all placeholder:text-gray-700 min-h-[100px]"
               placeholder="Kratki opis..." />
           </div>
+        </div>
+      </section>
+
+      {/* ─── Pristup za goste + QR — prevedeno ── */}
+      <section className="space-y-6">
+        <div>
+          <h3 className="text-3xl font-extrabold tracking-tight">{t.pristupNaslov}</h3>
+          <p className="text-gray-500 text-sm mt-1">{t.pristupOpis}</p>
+        </div>
+        <div className="bg-[#111] p-5 md:p-6 rounded-3xl border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <p className="text-xs text-gray-400 mb-1 text-center sm:text-left">{t.pristupKodNaslov}</p>
+            <p className="text-3xl md:text-4xl font-black tracking-widest text-white text-center sm:text-left">{form.kod}</p>
+          </div>
+          <button
+            onClick={() => setShowQR(true)}
+            className="w-full sm:w-auto bg-white text-black px-5 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 text-sm shadow-lg active:scale-95">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <rect x="7" y="7" width="3" height="3"/><rect x="14" y="7" width="3" height="3"/>
+              <rect x="7" y="14" width="3" height="3"/><rect x="14" y="14" width="3" height="3"/>
+            </svg>
+            {t.qrDugme}
+          </button>
         </div>
       </section>
 
@@ -725,8 +786,25 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
         </button>
       </section>
 
-      <ConfirmModal isOpen={saveModal} title={t.sacuvajNaslov} message={t.sacuvajPitanje} confirmLabel={t.izbrisi} cancelLabel={t.modalOdustani} onClose={() => setSaveModal(false)} onConfirm={handleSave} />
-      <ConfirmModal isOpen={deleteModal} title={t.brisanjeNaslov} message={t.brisanjePitanje} confirmLabel={t.izbrisi} cancelLabel={t.modalOdustani} onClose={() => setDeleteModal(false)} onConfirm={handleDelete} />
+      <ConfirmModal
+        isOpen={saveModal}
+        title={t.sacuvajNaslov}
+        message={t.sacuvajPitanje}
+        confirmLabel={t.sacuvajPromjene}
+        cancelLabel={t.modalOdustani}
+        onClose={() => setSaveModal(false)}
+        onConfirm={handleSave}
+      />
+      <ConfirmModal
+        isOpen={deleteModal}
+        title={t.brisanjeNaslov}
+        message={t.brisanjePitanje}
+        confirmLabel={t.izbrisi}
+        cancelLabel={t.modalOdustani}
+        danger
+        onClose={() => setDeleteModal(false)}
+        onConfirm={handleDelete}
+      />
       <Toast message={toastMsg} />
     </div>
   );

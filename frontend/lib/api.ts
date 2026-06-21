@@ -54,6 +54,7 @@ export interface ApiFotografija {
   event_id: number;
   korisnik_id: number;
   url: string;
+  tip_medija: 'image' | 'video';
   vrijeme_uploada: string;
   broj_lajkova: number;
   broj_komentara: number;

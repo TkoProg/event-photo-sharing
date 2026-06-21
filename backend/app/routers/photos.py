@@ -9,18 +9,13 @@ from app.models.lajk import Lajk
 from app.models.tag import Tag
 from app.routers.auth import get_trenutni_korisnik
 from app.routers.helpers import (
+    fotografija_u_response,
     korisnik_ima_pristup_eventu,
     korisnik_moze_urediti_event,
-    fotografija_u_response,
     pronadji_event_ili_greska,
     pronadji_fotografiju_ili_greska,
 )
 from app.schemas.fotografija import FotografijaResponse, TagCreateRequest, TagResponse
-from pathlib import Path
-
-from app.config import settings
-from app.models.ai_tag import AITag
-from app.services.ai_tagging_service import AITaggingService
 from app.services.upload_service import dozvoljen_medij, sacuvaj_upload_fajl
 
 
@@ -75,41 +70,6 @@ def upload_fotografija(
 
     for foto in sacuvane:
         session.refresh(foto)
-
-    # Pokreni AI analizu odmah nakon uploada za svaku spremljenu fotografiju.
-    # Analiza kreira AITag zapise sa statusom PENDING.
-    for foto in sacuvane:
-        try:
-            putanja_slike = Path(settings.upload_folder) / foto.putanja
-            if not putanja_slike.exists():
-                continue
-
-            tagovi_rezultat = AITaggingService.analiziraj_sliku(str(putanja_slike), top_k=5)
-
-            kreirani_tagovi = []
-            for tag_data in tagovi_rezultat:
-                ai_tag = AITag(
-                    fotografija_id=foto.id,
-                    tag_naziv=tag_data["tag"],
-                    pouzdanost=tag_data["pouzdanost"],
-                    status="PENDING",
-                )
-                session.add(ai_tag)
-                kreirani_tagovi.append(ai_tag)
-
-            if kreirani_tagovi:
-                session.commit()
-                # refresh created tags and foto
-                for tag in kreirani_tagovi:
-                    session.refresh(tag)
-                session.refresh(foto)
-
-        except FileNotFoundError:
-            # datoteka je nestala nakon spremanja; preskoči
-            continue
-        except Exception:
-            # Ako AI model baci grešku, nemojkinuti upload; samo preskoči
-            continue
 
     rezultat = []
 

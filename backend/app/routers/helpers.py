@@ -189,15 +189,24 @@ def album_detail_response(
     ).all()
 
     fotografije = []
+    broj_slika = 0
 
     for veza in veze:
         foto = session.get(Fotografija, veza.fotografija_id)
 
         if foto is not None and not foto.obrisana:
+            broj_slika += 1
             fotografije.append(fotografija_u_response(session, foto, trenutni_korisnik))
 
     return AlbumDetailResponse(
-        album=album_u_response(session, album),
+        id=album.id,
+        event_id=album.event_id,
+        naziv=album.naziv,
+        opis=album.opis,
+        tip=album.tip,
+        share_code=album.share_code,
+        javno=album.javno,
+        broj_fotografija=broj_slika,
         fotografije=fotografije,
     )
 

@@ -8,3 +8,6 @@ bcrypt==4.0.1
 python-jose[cryptography]
 email-validator
 python-multipart
+torch
+transformers
+pillow

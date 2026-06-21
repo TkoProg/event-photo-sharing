@@ -40,6 +40,15 @@ export interface ApiTag {
   oznaceni_korisnik_ime?: string | null;
 }
 
+export interface ApiAITag {
+  id: number;
+  fotografija_id: number;
+  tag_naziv: string;
+  pouzdanost: number;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  kreiran_at: string;
+}
+
 export interface ApiFotografija {
   id: number;
   event_id: number;
@@ -51,6 +60,7 @@ export interface ApiFotografija {
   favorit: boolean;
   liked_by_me: boolean;
   tagovi?: ApiTag[];
+  ai_tagovi?: ApiAITag[];
 }
 
 export interface ApiKomentar {
@@ -608,4 +618,80 @@ export async function deleteReport(reportId: number): Promise<void> {
   });
 
   await handleResponse<void>(res);
+}
+
+// ─── AI TAGOVI ─────────────────────────────────────────────────────────────
+
+export async function getAITagovi(photoId: number): Promise<ApiAITag[]> {
+  const res = await fetch(`${BASE_URL}/photos/${photoId}/ai-tags`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+
+  return handleResponse(res);
+}
+
+export async function analizirajSliku(photoId: number): Promise<{
+  status: string;
+  broj_tagova: number;
+  tagovi: Array<{ id: number; tag_naziv: string; pouzdanost: number }>;
+}> {
+  const res = await fetch(`${BASE_URL}/photos/${photoId}/ai-tags/analyze`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+
+  return handleResponse(res);
+}
+
+export async function prihvatiSveAITagove(photoId: number): Promise<ApiFotografija> {
+  const res = await fetch(`${BASE_URL}/photos/${photoId}/ai-tags/accept-all`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+
+  return handleResponse(res);
+}
+
+export async function odbijSveAITagove(photoId: number): Promise<ApiFotografija> {
+  const res = await fetch(`${BASE_URL}/photos/${photoId}/ai-tags/reject-all`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+
+  return handleResponse(res);
+}
+
+export async function prihvatiAITag(photoId: number, tagId: number): Promise<ApiFotografija> {
+  const res = await fetch(`${BASE_URL}/photos/${photoId}/ai-tags/${tagId}/accept`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+
+  return handleResponse(res);
+}
+
+export async function odbijAITag(photoId: number, tagId: number): Promise<ApiFotografija> {
+  const res = await fetch(`${BASE_URL}/photos/${photoId}/ai-tags/${tagId}/reject`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+
+  return handleResponse(res);
+}
+
+export async function obrisiAITag(photoId: number, tagId: number): Promise<ApiFotografija> {
+  const res = await fetch(`${BASE_URL}/photos/${photoId}/ai-tags/${tagId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+
+  return handleResponse(res);
 }

@@ -6,11 +6,13 @@ import {
   getEvent, updateEvent, deleteEvent, deleteAlbum,
   getFotografije, toggleFavorit,
   getAlbumi, dodajFotografijaUAlbum, getTrenutniKorisnik,
-  ApiFotografija, ApiAlbum, getUcesnici, ApiKorisnik, ukloniUcesnika
+  ApiFotografija, ApiAlbum, ApiAITag, ApiTag, getUcesnici, ApiKorisnik, ukloniUcesnika
 } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface Participant { id: number; name: string; }
+type GalleryPhoto = ApiFotografija & { tagovi?: ApiTag[]; ai_tagovi?: ApiAITag[] };
+type AlbumWithPhotos = ApiAlbum & { fotografije?: GalleryPhoto[] };
+type DashboardTexts = typeof PREVODI.BS;
 
 const TABS_RAW = [
   { id: 'photos', bs: 'Fotografije', en: 'Photos' },
@@ -26,9 +28,19 @@ const PREVODI = {
     nazad: '← Moji događaji', dobrodosli: 'Dobrodošli u kontrolnu ploču događaja.',
     galerija: 'Galerija fotografija', dodajSlike: '+ Dodaj slike', zatvori: 'Zatvori',
     pretrazi: 'Pretraži po tagu...', nemaTaga: 'Nema slika sa tim tagom.',
+    aiFilter: 'Filtriraj po AI tagovima',
+    ocistiFilter: 'Očisti',
+    sveSlike: 'Sve slike',
+    samoMoje: 'Samo moje',
+    galerijaPrazna: 'Galerija je prazna.',
     dodajUAlbum: '+ Album', izaberiAlbum: 'Izaberi album:', nemaAlbuma: 'Nemaš još albuma.',
     odustani: 'Odustani', mojiAlbumi: 'Moji albumi', kreirajAlbum: '+ Kreiraj album',
     favoriti: 'Favoriti', fotografija: 'fotografija', albumPrazan: 'Nemaš još albuma.',
+    slikaDodataUAlbum: 'Slika dodata u album! ✅',
+    brisanjeAlbumaNaslov: 'Brisanje albuma',
+    brisanjeAlbumaPitanje: 'Da li želiš obrisati ovaj album?',
+    izbrisiDugme: 'Obriši',
+    odustaniDugme: 'Odustani',
     ucesniciNaslov: 'Učesnici događaja', prijavljeni: 'Prijavljeni',
     ukloniUcesnika: 'Ukloni',
     ucesnikUklonjen: 'Učesnik je uklonjen.',
@@ -52,9 +64,19 @@ const PREVODI = {
     nazad: '← My events', dobrodosli: 'Welcome to the event dashboard.',
     galerija: 'Photo gallery', dodajSlike: '+ Add photos', zatvori: 'Close',
     pretrazi: 'Search by tag...', nemaTaga: 'No photos with this tag.',
+    aiFilter: 'Filter by AI tags',
+    ocistiFilter: 'Clear',
+    sveSlike: 'All photos',
+    samoMoje: 'Only mine',
+    galerijaPrazna: 'The gallery is empty.',
     dodajUAlbum: '+ Album', izaberiAlbum: 'Choose album:', nemaAlbuma: "No albums yet.",
     odustani: 'Cancel', mojiAlbumi: 'My albums', kreirajAlbum: '+ Create album',
     favoriti: 'Favorites', fotografija: 'photos', albumPrazan: "No albums yet.",
+    slikaDodataUAlbum: 'Photo added to album! ✅',
+    brisanjeAlbumaNaslov: 'Delete album',
+    brisanjeAlbumaPitanje: 'Do you want to delete this album?',
+    izbrisiDugme: 'Delete',
+    odustaniDugme: 'Cancel',
     ucesniciNaslov: 'Event participants', prijavljeni: 'Registered',
     ukloniUcesnika: 'Remove',
     ucesnikUklonjen: 'Participant removed.',
@@ -76,19 +98,6 @@ const PREVODI = {
   }
 };
 type T = typeof PREVODI.BS;
-
-// ─── Hooks ────────────────────────────────────────────────────────────────────
-function useLocalStorage<V>(key: string, init: V) {
-  const [val, setVal] = useState<V>(init);
-  useEffect(() => {
-    try { const s = localStorage.getItem(key); if (s) setVal(JSON.parse(s)); } catch {}
-  }, [key]);
-  const set = useCallback((v: V | ((p: V) => V)) => {
-    const toStore = v instanceof Function ? v(val) : v;
-    setVal(toStore); localStorage.setItem(key, JSON.stringify(toStore));
-  }, [key, val]);
-  return [val, set] as const;
-}
 
 function useKorisnik() {
   const [uloga, setUloga] = useState<string | null>(null);
@@ -123,7 +132,18 @@ function Toast({ message }: { message: string | null }) {
   );
 }
 
-function ConfirmModal({ isOpen, title, message, onClose, onConfirm, confirmLabel, cancelLabel, danger = false }: any) {
+type ConfirmModalProps = {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onClose: () => void;
+  onConfirm: () => void;
+  confirmLabel: string;
+  cancelLabel: string;
+  danger?: boolean;
+};
+
+function ConfirmModal({ isOpen, title, message, onClose, onConfirm, confirmLabel, cancelLabel, danger = false }: ConfirmModalProps) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
@@ -151,15 +171,16 @@ function FormField({ label, icon, ...props }: React.InputHTMLAttributes<HTMLInpu
 }
 
 // ─── Tab: Photos ──────────────────────────────────────────────────────────────
-function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: boolean }) {
-  const [photos, setPhotos] = useState<ApiFotografija[]>([]);
-  const [albums, setAlbums] = useState<ApiAlbum[]>([]);
+function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: DashboardTexts; mozeSve: boolean }) {
+  const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
+  const [albums, setAlbums] = useState<AlbumWithPhotos[]>([]);
   const [ucesnici, setUcesnici] = useState<ApiKorisnik[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
   const [samoMoje, setSamoMoje] = useState(false);
   const [trenutniKorisnikId, setTrenutniKorisnikId] = useState<number | null>(null);
+  const [selectedAITags, setSelectedAITags] = useState<string[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const { message: toastMsg, show: showToast } = useToast();
 
@@ -186,13 +207,7 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: 
     };
     load();
     return () => { cancelled = true; };
-  }, [eventId, mozeSve]);
-
-  useEffect(() => {
-    Promise.all([getFotografije(Number(eventId)), getAlbumi(Number(eventId))])
-      .then(([f, a]) => { setPhotos(f); setAlbums(a); })
-      .finally(() => setLoading(false));
-  }, [eventId]);
+  }, [eventId, mozeSve, showToast, t.greska]);
 
   useEffect(() => {
     const handle = (e: MouseEvent) => {
@@ -219,15 +234,25 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: 
     } catch { showToast(t.greska); }
   };
 
-  const filtered = photos.filter(foto => {
+  const filtered = photos.filter((foto) => {
     if (samoMoje && trenutniKorisnikId) {
-      const naSlici = (foto as any).tagovi?.some((tag: any) => tag.oznaceni_korisnik_id === trenutniKorisnikId);
+      const naSlici = foto.tagovi?.some((tag) => tag.oznaceni_korisnik_id === trenutniKorisnikId);
       if (!naSlici) return false;
     }
+
+    // AI tag filtering
+    if (selectedAITags.length > 0) {
+      const fotoAITags = (foto.ai_tagovi || [])
+        .filter((tag) => tag.status === 'ACCEPTED')
+        .map((tag) => tag.tag_naziv);
+      const hasSelectedTag = selectedAITags.some(tag => fotoAITags.includes(tag));
+      if (!hasSelectedTag) return false;
+    }
+
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     if (String(foto.id).includes(term)) return true;
-    const matchTag = (foto as any).tagovi?.some((tag: any) => {
+    const matchTag = foto.tagovi?.some((tag) => {
       const u = ucesnici.find(u => u.id === tag.oznaceni_korisnik_id);
       const ime = tag.oznaceni_korisnik_ime || u?.ime || '';
       return ime.toLowerCase().includes(term);
@@ -250,10 +275,10 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: 
             <button onClick={() => setSamoMoje(!samoMoje)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs md:text-sm font-bold transition-all border shrink-0 ${samoMoje ? 'bg-[#e60023] border-[#e60023] text-white' : 'bg-[#111] border-white/10 text-gray-300 hover:border-white/30'}`}>
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <span>{samoMoje ? t.sveSlike : t.sameMoje}</span>
+              <span>{samoMoje ? t.sveSlike : t.samoMoje}</span>
             </button>
           )}
-          <div className="relative flex-1 min-w-[140px] md:w-64">
+          <div className="relative flex-1 min-w-35 md:w-64">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">🔍</span>
             <input type="text" placeholder={t.pretrazi} value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -266,14 +291,54 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: 
         </div>
       </div>
 
+      {/* AI Tag Filter */}
+      {Boolean(photos.find(p => (p.ai_tagovi || []).length > 0)) && (
+        <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-2xl">
+          <p className="text-xs font-bold text-blue-400 mb-3">🤖 {t.aiFilter}</p>
+          <div className="flex flex-wrap gap-2">
+            {Array.from(new Set(
+              photos
+                .flatMap(p => (p.ai_tagovi || []).filter(t => t.status === 'ACCEPTED'))
+                .map(t => t.tag_naziv)
+            )).map(tag => (
+              <button
+                key={tag}
+                onClick={() => setSelectedAITags(prev =>
+                  prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                )}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  selectedAITags.includes(tag)
+                    ? 'bg-blue-600 text-white border border-blue-600'
+                    : 'bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+            {selectedAITags.length > 0 && (
+              <button
+                onClick={() => setSelectedAITags([])}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 transition-all"
+              >
+                ✕ {t.ocistiFilter}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="text-center py-20 text-gray-500">
-          <p className="text-4xl mb-3">{searchTerm || samoMoje ? '🔍' : '📭'}</p>
-          <p>{searchTerm || samoMoje ? t.nemaTaga : t.galerija_prazna}</p>
+          <p className="text-4xl mb-3">{searchTerm || samoMoje || selectedAITags.length > 0 ? '🔍' : '📭'}</p>
+          <p>{searchTerm || samoMoje || selectedAITags.length > 0 ? t.nemaTaga : t.galerijaPrazna}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
-          {filtered.map(foto => (
+          {filtered.map(foto => {
+            const tagoviOsoba = foto.tagovi ?? [];
+            const aiTagovi = foto.ai_tagovi ?? [];
+
+            return (
             <div key={foto.id} className="relative group flex flex-col">
               
               <Link href={`/photos/${foto.id}`} className="relative z-0">
@@ -286,7 +351,7 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: 
               <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mt-2 md:mt-3">
                 {mozeSve && (
                   <button onClick={() => setSelectedPhotoId(foto.id === selectedPhotoId ? null : foto.id)}
-                    className="flex-1 min-w-[60px] bg-white/10 hover:bg-white/20 px-2 py-1.5 md:py-2 rounded-lg text-[11px] md:text-sm font-semibold transition-all">
+                    className="flex-1 min-w-15 bg-white/10 hover:bg-white/20 px-2 py-1.5 md:py-2 rounded-lg text-[11px] md:text-sm font-semibold transition-all">
                     {t.dodajUAlbum}
                   </button>
                 )}
@@ -300,16 +365,23 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: 
                 
                 <button onClick={() => handleDownload(foto.url, `slika-${foto.id}.jpg`)}
                   className="px-2 py-1.5 md:px-3 md:py-2 bg-black border border-white/10 hover:bg-gray-800 rounded-lg text-white shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="md:w-[16px] md:h-[16px]">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="md:w-4 md:h-4">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                   </svg>
                 </button>
 
-                {(foto as any).tagovi?.length > 0 && (
+                {tagoviOsoba.length > 0 && (
                   <span className="ml-auto text-white/30 text-[10px] md:text-[11px] flex items-center gap-1 hover:text-white/60 cursor-help shrink-0"
-                    title={`Označenih osoba: ${(foto as any).tagovi.length}`}>
-                    {(foto as any).tagovi.length}
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="md:w-[12px] md:h-[12px]"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    title={`Označenih osoba: ${tagoviOsoba.length}`}>
+                    {tagoviOsoba.length}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="md:w-3 md:h-3"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </span>
+                )}
+
+                {aiTagovi.filter((tag) => tag.status === 'ACCEPTED').length > 0 && (
+                  <span className="text-blue-400/70 text-[10px] md:text-[11px] flex items-center gap-1 hover:text-blue-400 cursor-help shrink-0"
+                    title={`AI tagovi: ${aiTagovi.filter((tag) => tag.status === 'ACCEPTED').map((tag) => tag.tag_naziv).join(', ')}`}>
+                    🤖 {aiTagovi.filter((tag) => tag.status === 'ACCEPTED').length}
                   </span>
                 )}
               </div>
@@ -325,8 +397,7 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: 
                     {albums.map(album => (
                       <button key={album.id}
                         onClick={async () => {
-                          // RJEŠENJE ZA TYPESCRIPT GREŠKU (dodato: as any)
-                          const slikaVecPostoji = (album as any).fotografije?.some((f: any) => f.id === foto.id);
+                          const slikaVecPostoji = album.fotografije?.some((f) => f.id === foto.id);
                           if (slikaVecPostoji) {
                             showToast('Ova slika je već u tom albumu! 📸');
                             setSelectedPhotoId(null);
@@ -352,7 +423,8 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: 
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
       <Toast message={toastMsg} />
@@ -361,7 +433,7 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: any; mozeSve: 
 }
 
 // ─── Tab: Albums ──────────────────────────────────────────────────────────────
-function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: any; mozeSve: boolean; jeAdmin: boolean }) {
+function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: DashboardTexts; mozeSve: boolean; jeAdmin: boolean }) {
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [favCount, setFavCount] = useState(0);
@@ -377,7 +449,7 @@ function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: any; 
     getFotografije(Number(eventId))
       .then(photos => setFavCount(photos.filter(p => p.favorit).length))
       .catch(() => {});
-  }, [eventId]);
+  }, [eventId, showToast, t.greska]);
 
   const allAlbums = [
     { id: 'favorites', naziv: t.favoriti, broj_fotografija: favCount },
@@ -414,7 +486,7 @@ function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: any; 
                 {album.id === 'favorites' ? '⭐' : '📁'}
               </div>
               
-              <div className="flex-grow min-w-0 pr-6">
+                      <div className="grow min-w-0 pr-6">
                 <Link href={`/events/${eventId}/albums/${album.id}`} className="block">
                   <h3 className="text-lg md:text-xl font-bold hover:underline truncate">{album.naziv}</h3>
                   <p className="text-xs text-gray-500 mt-1">{album.broj_fotografija} {t.fotografija}</p>
@@ -473,7 +545,7 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
       .then(setParticipants)
       .catch(() => showToast(t.greska))
       .finally(() => setLoading(false));
-  }, [eventId]);
+  }, [eventId, showToast, t.greska]);
 
   const handleRemoveParticipant = async (participantId: number) => {
     setRemovingId(participantId);
@@ -516,7 +588,7 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
         ) : (
           participants.map(p => (
             <div key={p.id} className="flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-2xl">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-sm">
+              <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-sm">
                 {p.ime.charAt(0).toUpperCase()}
               </div>
               <div>
@@ -553,7 +625,6 @@ function ParticipantsTab({ eventId, t }: { eventId: string; t: T }) {
 
 // ─── Tab: Settings ────────────────────────────────────────────────────────────
 function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
-  const router = useRouter();
   const [form, setForm] = useState({ naziv: '', datum: '', lokacija: '', opis: '', aktivan: true, kod: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -566,15 +637,17 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
       .then(e => setForm({ naziv: e.naziv, datum: e.datum, lokacija: e.lokacija, opis: e.opis, aktivan: e.aktivan, kod: e.kod }))
       .catch(() => showToast(t.greska))
       .finally(() => setLoading(false));
-  }, [eventId]);
+  }, [eventId, showToast, t.greska]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { kod, ...formBezKoda } = form;
-    await updateEvent(Number(eventId), formBezKoda);
+      const { kod: _kod, ...formBezKoda } = form;
+      await updateEvent(Number(eventId), formBezKoda);
       showToast(t.promjeneSacuvane);
-    } catch { showToast(t.greska); }
+    } catch {
+      showToast(t.greska);
+    }
     finally { setSaving(false); setSaveModal(false); }
   };
 
@@ -582,8 +655,8 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
     try {
       await deleteEvent(Number(eventId));
       window.location.href = '/organizer/events';
-    } catch (err: any) {
-      showToast(err.message || t.greska);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : t.greska);
       setDeleteModal(false);
     }
   };
@@ -607,8 +680,8 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
           <FormField label={t.lokacija} icon="📍" value={form.lokacija} onChange={e => setForm({ ...form, lokacija: e.target.value })} placeholder="Sarajevo..." />
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-gray-500 tracking-wider uppercase flex items-center gap-1.5 ml-1"><span>📝</span> {t.opis}</label>
-            <textarea value={form.opis} onChange={e => setForm({ ...form, opis: e.target.value })}
-              className="w-full bg-[#111] border border-white/5 p-4 rounded-3xl text-white text-sm focus:border-white/20 transition-all placeholder:text-gray-700 min-h-[100px]"
+              <textarea value={form.opis} onChange={e => setForm({ ...form, opis: e.target.value })}
+              className="w-full bg-[#111] border border-white/5 p-4 rounded-3xl text-white text-sm focus:border-white/20 transition-all placeholder:text-gray-700 min-h-25"
               placeholder="Kratki opis..." />
           </div>
         </div>
@@ -652,8 +725,8 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
         </button>
       </section>
 
-      <ConfirmModal isOpen={saveModal} title={t.sacuvajNaslov} message={t.sacuvajPitanje} t={t} onClose={() => setSaveModal(false)} onConfirm={handleSave} />
-      <ConfirmModal isOpen={deleteModal} title={t.brisanjeNaslov} message={t.brisanjePitanje} t={t} onClose={() => setDeleteModal(false)} onConfirm={handleDelete} />
+      <ConfirmModal isOpen={saveModal} title={t.sacuvajNaslov} message={t.sacuvajPitanje} confirmLabel={t.izbrisi} cancelLabel={t.modalOdustani} onClose={() => setSaveModal(false)} onConfirm={handleSave} />
+      <ConfirmModal isOpen={deleteModal} title={t.brisanjeNaslov} message={t.brisanjePitanje} confirmLabel={t.izbrisi} cancelLabel={t.modalOdustani} onClose={() => setDeleteModal(false)} onConfirm={handleDelete} />
       <Toast message={toastMsg} />
     </div>
   );
@@ -677,7 +750,9 @@ export default function EventDashboard() {
 
   useEffect(() => {
     const sacuvani = localStorage.getItem('izabraniJezik');
-    if (sacuvani) setJezik(sacuvani);
+    if (sacuvani) {
+      window.requestAnimationFrame(() => setJezik(sacuvani));
+    }
     const provjeri = () => {
       const t = localStorage.getItem('izabraniJezik');
       if (t) setJezik(t);
@@ -696,11 +771,7 @@ export default function EventDashboard() {
 
   const t = jezik === 'BS' ? PREVODI.BS : PREVODI.EN;
   const tabs = TABS_RAW
-    .filter(tab => {
-      if (!mozeSve && tab.id === 'settings') return false;
-      if (!mozeSve && tab.id === 'participants') return false;
-      return true;
-    })
+      .filter(tab => mozeSve || (tab.id !== 'settings' && tab.id !== 'participants'))
     .map(tab => ({ id: tab.id, name: jezik === 'BS' ? tab.bs : tab.en }));
 
   return (
@@ -727,7 +798,7 @@ export default function EventDashboard() {
           ))}
         </nav>
 
-        <div className="mt-6 min-h-[400px] w-full">
+        <div className="mt-6 min-h-100 w-full">
           {activeTab === 'photos' && <PhotosTab eventId={id} t={t} mozeSve={mozeSve} />}
           {activeTab === 'albums' && <AlbumsTab eventId={id} t={t} mozeSve={mozeSve} jeAdmin={jeAdmin} />}
           {activeTab === 'participants' && mozeSve && <ParticipantsTab eventId={id} t={t} />}

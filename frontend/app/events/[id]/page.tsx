@@ -725,6 +725,11 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
     }
   };
 
+  const qrVrijednost =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/join?code=${encodeURIComponent(form.kod)}`
+      : form.kod;
+
   if (loading) return (
     <div className="max-w-xl space-y-4 animate-pulse">
       {[1,2,3,4].map(i => <div key={i} className="h-14 rounded-full bg-white/5" />)}
@@ -835,6 +840,38 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
         onClose={() => setSaveModal(false)}
         onConfirm={handleSave}
       />
+      {showQR && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/10 max-w-sm w-full text-center shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-bold">{t.qrNaslov}</h3>
+              <button
+                type="button"
+                onClick={() => setShowQR(false)}
+                aria-label={t.zatvori}
+                className="h-9 w-9 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-all flex items-center justify-center"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl inline-flex">
+              <QRCodeSVG value={qrVrijednost} size={220} level="M" includeMargin />
+            </div>
+
+            <p className="mt-5 text-xs text-gray-400">{t.pristupKodNaslov}</p>
+            <p className="font-mono text-2xl font-black tracking-widest text-white mt-1">{form.kod}</p>
+
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="mt-6 w-full bg-white text-black px-5 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm active:scale-95"
+            >
+              {t.kopirajKod}
+            </button>
+          </div>
+        </div>
+      )}
       <ConfirmModal
         isOpen={deleteModal}
         title={t.brisanjeNaslov}

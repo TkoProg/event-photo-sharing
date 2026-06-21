@@ -8,7 +8,8 @@ import {
   ApiFotografija,
   objaviAlbum,
   ukloniFotografijaIzAlbuma,
-  toggleFavorit
+  toggleFavorit,
+  deleteAlbum
 } from '@/lib/api';
 import Link from 'next/link';
 
@@ -29,6 +30,9 @@ const PREVODI = {
     objavljeno: 'Objavljeno',
     objaviAlbum: 'Objavi album',
     objavljivanje: 'Objavljivanje...',
+    obrisiAlbum: 'Obriši album',
+    potvrdaBrisanjaAlbuma: 'Da li ste sigurni da želite obrisati ovaj album? Fotografije i videi ostaju u galeriji.',
+    albumObrisanGreska: 'Greška pri brisanju albuma.',
     kopirajLink: 'Kopiraj link',
     linkKopiran: 'Kopirano!',
     slideshow: 'Slideshow',
@@ -52,6 +56,9 @@ const PREVODI = {
     objavljeno: 'Published',
     objaviAlbum: 'Publish album',
     objavljivanje: 'Publishing...',
+    obrisiAlbum: 'Delete album',
+    potvrdaBrisanjaAlbuma: 'Are you sure you want to delete this album? Photos and videos will stay in the gallery.',
+    albumObrisanGreska: 'Error deleting album.',
     kopirajLink: 'Copy link',
     linkKopiran: 'Copied!',
     slideshow: 'Slideshow',
@@ -104,6 +111,7 @@ export default function AlbumDetails() {
   const [publishing, setPublishing] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
+  const [deleteAlbumModal, setDeleteAlbumModal] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
 
   const t = jezik === 'BS' ? PREVODI.BS : PREVODI.EN;
@@ -238,6 +246,18 @@ export default function AlbumDetails() {
       setSelectedIndex(null);
       setDeleteModal(false);
     } catch { alert(t.greskaUklanjanja); }
+  };
+
+  const handleDeleteAlbum = async () => {
+    if (isFavorites) return;
+
+    try {
+      await deleteAlbum(Number(albumId));
+      router.push(`/events/${eventId}?tab=albums`);
+    } catch {
+      alert(t.albumObrisanGreska);
+      setDeleteAlbumModal(false);
+    }
   };
 
   const selectedPhoto = selectedIndex !== null ? photos[selectedIndex] : null;
@@ -380,6 +400,15 @@ export default function AlbumDetails() {
         onClose={() => setDeleteModal(false)}
         onConfirm={isFavorites ? handleRemoveFromFavorites : handleRemoveFromAlbum}
       />
+      <ConfirmModal
+        isOpen={deleteAlbumModal}
+        title={t.obrisiAlbum}
+        message={t.potvrdaBrisanjaAlbuma}
+        confirmLabel={t.obrisiAlbum}
+        cancelLabel={t.odustani}
+        onClose={() => setDeleteAlbumModal(false)}
+        onConfirm={handleDeleteAlbum}
+      />
 
       {/* ─── Header ────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 bg-[#0a0a0a]/90 backdrop-blur-xl border-b border-white/5">
@@ -410,7 +439,8 @@ export default function AlbumDetails() {
 
             {/* Objavi / Kopiraj link — samo za obične albume */}
             {mozeSve && !isFavorites && (
-              album.javno ? (
+              <>
+              {album.javno ? (
                 <button onClick={handleCopyLink}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
                     copied
@@ -446,7 +476,19 @@ export default function AlbumDetails() {
                     </>
                   )}
                 </button>
-              )
+              )}
+              <button
+                type="button"
+                onClick={() => setDeleteAlbumModal(true)}
+                title={t.obrisiAlbum}
+                aria-label={t.obrisiAlbum}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-red-500/10 hover:bg-red-500 border border-red-500/20 text-red-400 hover:text-white transition-all active:scale-95"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                <span className="hidden sm:inline">{t.obrisiAlbum}</span>
+                <span className="sm:hidden">{t.obrisiAlbum}</span>
+              </button>
+              </>
             )}
           </div>
         </div>

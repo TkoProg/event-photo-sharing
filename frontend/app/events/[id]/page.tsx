@@ -459,7 +459,7 @@ function PhotosTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: bo
 }
 
 // ─── Tab: Albums ──────────────────────────────────────────────────────────────
-function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: T; mozeSve: boolean; jeAdmin: boolean }) {
+function AlbumsTab({ eventId, t, mozeSve }: { eventId: string; t: T; mozeSve: boolean }) {
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
   const [albumCovers, setAlbumCovers] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
@@ -542,16 +542,16 @@ function AlbumsTab({ eventId, t, mozeSve, jeAdmin }: { eventId: string; t: T; mo
               </div>
 
               {mozeSve && !isFav && (
-                <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                  {jeAdmin && (
-                    <button
-                      onClick={e => { e.preventDefault(); setDeleteAlbumModal({ isOpen: true, albumId: Number(album.id) }); }}
-                      className="w-7 h-7 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/60 hover:text-red-400 hover:border-red-500/30 transition-all"
-                      title={t.izbrisiDugme}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                    </button>
-                  )}
+                <div className="absolute top-2.5 right-2.5 flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={e => { e.preventDefault(); setDeleteAlbumModal({ isOpen: true, albumId: Number(album.id) }); }}
+                    className="w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/60 hover:text-red-400 hover:border-red-500/30 transition-all"
+                    title={t.izbrisiDugme}
+                    aria-label={t.izbrisiDugme}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  </button>
                 </div>
               )}
             </div>
@@ -955,7 +955,7 @@ export default function EventDashboard() {
 
         <div className="mt-6 min-h-100 w-full">
           {activeTab === 'photos' && <PhotosTab eventId={id} t={t} mozeSve={mozeSve} />}
-          {activeTab === 'albums' && <AlbumsTab eventId={id} t={t} mozeSve={mozeSve} jeAdmin={jeAdmin} />}
+          {activeTab === 'albums' && <AlbumsTab eventId={id} t={t} mozeSve={mozeSve} />}
           {activeTab === 'participants' && mozeSve && <ParticipantsTab eventId={id} t={t} />}
           {activeTab === 'settings' && mozeSve && <SettingsTab eventId={id} t={t} />}
         </div>

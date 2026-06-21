@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "sqlite:///./event_photo_sharing.db"
+    database_url: str = "sqlite:///./flashback.db"
 
     secret_key: str
     algorithm: str = "HS256"

@@ -10,7 +10,7 @@ from app.database import kreiraj_tabele
 from app.routers import admin, albums, auth, comments, events, feed, photos, reports
 
 
-app = FastAPI(title="Event Photo Sharing API")
+app = FastAPI(title="Flashback API")
 
 
 app.add_middleware(
@@ -32,7 +32,7 @@ def on_startup():
 
 @app.get("/")
 def root():
-    return {"message": "Event Photo Sharing API radi."}
+    return {"message": "Flashback API radi."}
 
 
 @app.get("/health")

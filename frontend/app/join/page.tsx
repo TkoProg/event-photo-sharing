@@ -114,7 +114,7 @@ export default function JoinPage() {
         </div>
 
         <div className="mb-10 text-3xl font-light tracking-tighter italic">
-          Event<span className="font-semibold text-[#e60023]">Photo</span>
+          Flash<span className="font-semibold text-[#e60023]">back</span>
         </div>
 
         <h1 className="text-xl font-medium mb-2 tracking-tight text-white">{t.naslov}</h1>

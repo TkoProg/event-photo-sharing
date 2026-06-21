@@ -1,11 +1,11 @@
-# Event Sharing Platform
+# Flashback
 
 Full-stack aplikacija za dijeljenje fotografija i sadrzaja sa dogadjaja.
 
 Projekat je podijeljen na dva glavna dijela:
 
 ```txt
-event-sharing-platform/
+flashback/
   backend/   - FastAPI backend aplikacija
   frontend/  - Next.js / React frontend aplikacija
 ```
@@ -33,14 +33,14 @@ git clone LINK_DO_REPOZITORIJA
 Zatim uci u folder projekta:
 
 ```bash
-cd event-sharing-platform
+cd flashback
 ```
 
 Primjer:
 
 ```bash
-git clone https://github.com/username/event-photo-sharing.git
-cd event-photo-sharing
+git clone https://github.com/username/flashback.git
+cd flashback
 ```
 
 > Napomena: `LINK_DO_REPOZITORIJA` zamijeniti stvarnim linkom naseg GitHub repozitorija.
@@ -383,7 +383,7 @@ Ovi fajlovi su vec dodani u `.gitignore`.
 Trenutna struktura projekta:
 
 ```txt
-event-sharing-platform/
+flashback/
   README.md
   .gitignore
 

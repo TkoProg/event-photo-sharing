@@ -127,7 +127,7 @@ export default function DashboardPage() {
 
       <nav className="relative z-10 flex justify-between items-center px-8 py-6 max-w-7xl mx-auto w-full">
         <div className="text-xl font-bold tracking-tighter">
-          Event<span className="text-[#e60023]">Photo</span>
+          Flash<span className="text-[#e60023]">back</span>
         </div>
         
         <div className="flex items-center gap-4">

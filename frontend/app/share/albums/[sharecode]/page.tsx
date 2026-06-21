@@ -148,7 +148,7 @@ export default function ShareAlbumPage() {
               </Link>
             )}
             <div className="text-xl font-bold tracking-tighter hidden sm:block">
-              Event<span className="text-[#e60023]">Photo</span>
+              Flash<span className="text-[#e60023]">back</span>
             </div>
           </div>
 

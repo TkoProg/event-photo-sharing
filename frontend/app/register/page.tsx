@@ -121,7 +121,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="mb-8 text-2xl font-light tracking-tighter italic">
-          Event<span className="font-semibold text-[#e60023]">Photo</span>
+          Flash<span className="font-semibold text-[#e60023]">back</span>
         </div>
 
         <p className="text-xs text-gray-400 mb-6 font-light">{t.podnaslov}</p>

@@ -47,7 +47,7 @@ export default function ReportPage() {
       ERR_REPORT_MESSAGE_TOO_SHORT: "Poruka mora imati najmanje 10 karaktera.",
       kontaktNaslov: "Brza pomoć",
       kontaktOpis: "Za hitne slučajeve možete kontaktirati podršku:",
-      kontaktEmail: "support@eventphoto.demo",
+      kontaktEmail: "support@flashback.demo",
       kontaktTelefon: "+387 61 000 000"
     },
     EN: {
@@ -69,7 +69,7 @@ export default function ReportPage() {
       ERR_REPORT_MESSAGE_TOO_SHORT: "Message must contain at least 10 characters.",
       kontaktNaslov: "Quick support",
       kontaktOpis: "For urgent issues, you can contact support:",
-      kontaktEmail: "support@eventphoto.demo",
+      kontaktEmail: "support@flashback.demo",
       kontaktTelefon: "+387 61 000 000"
     }
   };

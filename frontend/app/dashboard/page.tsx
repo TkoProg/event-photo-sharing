@@ -97,6 +97,9 @@ export default function DashboardPage() {
       pregledSvihDogadjaja: "Pregled svih događaja",
       adminNaslov: "Admin Panel",
       adminOpis: "Upravljanje korisnicima i sistemom",
+      pridruziSeNaslov: "Pridruži se događaju",
+      pridruziSeOpis: "Unesi kod za goste i pristupi galeriji događaja.",
+      pridruziSeDugme: "Unesi kod",
       navHome: "Početna",
       navFeed: "Feed",
       navProfil: "Moji događaji",
@@ -111,6 +114,9 @@ export default function DashboardPage() {
       pregledSvihDogadjaja: "All events overview",
       adminNaslov: "Admin Panel",
       adminOpis: "User and system management",
+      pridruziSeNaslov: "Join an event",
+      pridruziSeOpis: "Enter a guest code and access the event gallery.",
+      pridruziSeDugme: "Enter code",
       navHome: "Home",
       navFeed: "Feed",
       navProfil: "My events",
@@ -120,6 +126,7 @@ export default function DashboardPage() {
 
   const t = jezik === 'BS' ? prevodi.BS : prevodi.EN;
   const jeAdmin = uloga === 'ADMIN';
+  const jeGost = uloga === 'GOST';
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans overflow-hidden relative flex flex-col">
@@ -162,6 +169,42 @@ export default function DashboardPage() {
         <p className="text-lg text-gray-400 mb-20 max-w-xl font-light leading-relaxed">
           {t.opis}
         </p>
+
+        {jeGost && (
+          <Link href="/join" className="w-full max-w-xl mb-14 group">
+            <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-5 group-hover:border-[#e60023]/50 transition-all">
+              <div className="flex items-center gap-4 text-left">
+                <div className="w-12 h-12 bg-[#e60023]/20 rounded-2xl flex items-center justify-center text-[#e60023] shrink-0">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="M7 8h10" />
+                    <path d="M7 12h4" />
+                    <path d="M13 16h4" />
+                  </svg>
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-lg text-white">{t.pridruziSeNaslov}</h3>
+                  <p className="text-gray-500 text-xs sm:text-sm">{t.pridruziSeOpis}</p>
+                </div>
+              </div>
+
+              <span className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-[#e60023] text-white text-sm font-bold group-hover:bg-[#c4001d] transition-colors">
+                {t.pridruziSeDugme}
+              </span>
+            </div>
+          </Link>
+        )}
 
         <div className="relative w-full max-w-4xl h-[320px] sm:h-[400px] mb-20">
           <div className="absolute top-10 left-12 sm:left-5 w-40 sm:w-64 h-48 sm:h-66 bg-gray-800 rounded-2xl rotate-[-12deg] overflow-hidden border border-white/10 shadow-2xl hover:rotate-0 hover:scale-110 transition-all duration-500 cursor-pointer hover:z-30">

@@ -16,6 +16,9 @@ import {
   dodajTag, deleteTag, ApiTag
 } from '@/lib/api';
 
+// Local typed shape for AI tags (backend returns these but ApiFotografija in this file may not include them)
+type LocalApiAITag = { id: number; tag_naziv: string; pouzdanost: number; status: 'PENDING' | 'ACCEPTED' | 'REJECTED' };
+
 const PREVODI = {
   BS: {
     nazadUGaleriju: '← Nazad u galeriju',
@@ -167,6 +170,7 @@ export default function PhotoDetail() {
 
   const t = jezik === 'BS' ? PREVODI.BS : PREVODI.EN;
   const mozeObrisatiSliku = Boolean(photo && (mozeSve || photo.korisnik_id === korisnikId));
+  const aiAcceptedCount = ((photo as unknown as (ApiFotografija & { ai_tagovi?: LocalApiAITag[] }))?.ai_tagovi || []).filter(a => a.status === 'ACCEPTED').length;
 
   // Funkcija za prebacivanje slika
   const navigateTo = useCallback((index: number) => {
@@ -408,7 +412,7 @@ const handleAddTag = async (e: React.FormEvent) => {
           <div className="bg-[#111] p-6 rounded-3xl border border-white/5">
             <h3 className="text-xl font-bold mb-4">{t.tagovi}</h3>
             <div className="flex flex-wrap gap-2 mb-6">
-              {tagovi.length === 0 ? (
+              {tagovi.length === 0 && aiAcceptedCount === 0 ? (
                 <p className="text-sm text-gray-500 italic">{t.nemaTagova}</p>
               ) : (
                 tagovi.map(tag => {
@@ -439,6 +443,17 @@ const handleAddTag = async (e: React.FormEvent) => {
                   );
                 })
               )}
+
+              {/* Prikaži prihvaćene AI tagove (ako postoje) */}
+              {(() => {
+                const aiTags = ((photo as unknown) as ApiFotografija & { ai_tagovi?: LocalApiAITag[] }).ai_tagovi || [];
+                const accepted = aiTags.filter(a => a.status === 'ACCEPTED');
+                return accepted.map(ai => (
+                  <span key={`ai-${ai.id}`} className="bg-transparent border border-yellow-500/30 text-xs px-3 py-1.5 rounded-lg text-yellow-300 font-semibold flex items-center gap-2">
+                    🤖 {ai.tag_naziv}
+                  </span>
+                ));
+              })()}
             </div>
             
             <form onSubmit={(e) => {

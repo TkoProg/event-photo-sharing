@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
 from app.models.album import Album, AlbumFotografija, TipAlbuma
+from app.models.ai_tag import AITag
 from app.models.event import Event, EventUcesnik
 from app.models.fotografija import Fotografija
 from app.models.komentar import Komentar
@@ -11,7 +12,7 @@ from app.models.korisnik import Korisnik, UlogaKorisnika
 from app.models.lajk import Lajk
 from app.models.tag import Tag
 from app.schemas.album import AlbumDetailResponse, AlbumResponse
-from app.schemas.fotografija import FotografijaResponse, TagResponse
+from app.schemas.fotografija import AITagResponse, FotografijaResponse, TagResponse
 from app.services.upload_service import napravi_public_url, tip_medija_iz_naziva
 
 
@@ -120,6 +121,23 @@ def fotografija_u_response(
             )
         )
 
+    # AI Tagovi
+    ai_tagovi = session.exec(
+        select(AITag).where(AITag.fotografija_id == fotografija.id)
+    ).all()
+
+    ai_tag_responses = [
+        AITagResponse(
+            id=ai_tag.id,
+            fotografija_id=ai_tag.fotografija_id,
+            tag_naziv=ai_tag.tag_naziv,
+            pouzdanost=ai_tag.pouzdanost,
+            status=ai_tag.status,
+            kreiran_at=ai_tag.kreiran_at,
+        )
+        for ai_tag in ai_tagovi
+    ]
+
     return FotografijaResponse(
         id=fotografija.id,
         event_id=fotografija.event_id,
@@ -132,6 +150,7 @@ def fotografija_u_response(
         favorit=fotografija.favorit,
         liked_by_me=liked_by_me,
         tagovi=tag_responses,
+        ai_tagovi=ai_tag_responses,
     )
 
 

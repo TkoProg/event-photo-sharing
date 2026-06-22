@@ -11,6 +11,7 @@ export default function EventsListPage() {
   const [eventi, setEventi] = useState<ApiEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [greska, setGreska] = useState('');
+  const [kopiranKodEventa, setKopiranKodEventa] = useState<number | null>(null);
 
   useEffect(() => {
     // 1. Jezik provjera
@@ -60,12 +61,40 @@ export default function EventsListPage() {
     window.dispatchEvent(new Event('storage'));
   };
 
+  const kopirajKod = async (eventId: number, kod: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(kod);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = kod;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+
+      setKopiranKodEventa(eventId);
+      window.setTimeout(() => setKopiranKodEventa(null), 1600);
+    } catch {
+      setGreska(jezik === 'BS' ? 'Kod nije kopiran. Pokušaj ponovo.' : 'Code was not copied. Please try again.');
+    }
+  };
+
   const prevodi = {
     BS: {
       naslov: "Moji događaji",
       adminNaslov: "Pregled svih događaja",
       dugmeNovi: "+ Novi događaj",
       kodGosta: "Kod za goste",
+      kopirajKod: "Kopiraj kod",
+      kopirano: "Kopirano",
       nazad: "← Nazad na početak",
       ucitavanje: "Učitavanje događaja...",
       nemaEventa: "Nemate kreiranih događaja. Kreirajte svoj prvi klikom na dugme iznad!",
@@ -76,6 +105,8 @@ export default function EventsListPage() {
       adminNaslov: "All events overview",
       dugmeNovi: "+ New Event",
       kodGosta: "Guest code",
+      kopirajKod: "Copy code",
+      kopirano: "Copied",
       nazad: "← Back to home",
       ucitavanje: "Loading events...",
       nemaEventa: "No events created yet. Create your first event by clicking the button above!",
@@ -131,23 +162,42 @@ export default function EventsListPage() {
          
           <div className="grid gap-4">
             {eventi.map((event) => (
-              <Link 
-                href={`/events/${event.id}`}
-                key={event.id} 
-                className="bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-xl flex justify-between items-center hover:border-white/20 transition-all cursor-pointer group"
+              <div
+                key={event.id}
+                className="bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-xl flex justify-between items-center hover:border-white/20 transition-all group gap-4"
               >
-                <div>
+                <Link href={`/events/${event.id}`} className="min-w-0 flex-1">
                   <h2 className="text-xl font-semibold group-hover:text-[#e60023] transition-colors">{event.naziv}</h2>
                   <p className="text-sm text-gray-500 font-light">
                     {new Date(event.datum).toLocaleDateString(jezik === 'BS' ? 'bs-BA' : 'en-US')} 
                     {event.lokacija && ` • ${event.lokacija}`}
                   </p>
-                </div>
-                <div className="text-right">
+                </Link>
+                <div className="text-right flex items-center gap-3">
+                  <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">{t.kodGosta}</p>
                   <p className="font-mono text-[#e60023] font-bold text-lg tracking-wider">{event.kod}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => kopirajKod(event.id, event.kod, e)}
+                    aria-label={t.kopirajKod}
+                    title={t.kopirajKod}
+                    className="h-10 w-10 rounded-full border border-white/10 bg-white/5 text-gray-300 hover:bg-white hover:text-black hover:border-white transition-all flex items-center justify-center shrink-0"
+                  >
+                    {kopiranKodEventa === event.id ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    )}
+                  </button>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}

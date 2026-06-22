@@ -50,6 +50,13 @@ export default function JoinPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const kodIzLinka = new URLSearchParams(window.location.search).get('code');
+    if (kodIzLinka) {
+      setKod(kodIzLinka);
+    }
+  }, []);
+
+  useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
     if (sacuvaniJezik) {
       setJezik(sacuvaniJezik);

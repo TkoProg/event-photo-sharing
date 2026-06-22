@@ -1,12 +1,13 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getFeed, ApiFotografija } from '@/lib/api';
+import { getFeed, getTrenutniKorisnik, ApiFotografija } from '@/lib/api';
 
 const PREVODI = {
   BS: {
     naslov: 'Feed',
     podnaslov: 'Najnovije fotografije sa tvojih događaja',
+    adminPodnaslov: 'Najnovije fotografije sa svih događaja',
     prazno: 'Nema fotografija još.',
     praznoOpis: 'Pridruži se događaju ili uploaduj prvu sliku!',
     nazad: '← Nazad',
@@ -17,6 +18,7 @@ const PREVODI = {
   EN: {
     naslov: 'Feed',
     podnaslov: 'Latest photos from your events',
+    adminPodnaslov: 'Latest photos from all events',
     prazno: 'No photos yet.',
     praznoOpis: 'Join an event or upload your first photo!',
     nazad: '← Back',
@@ -30,12 +32,20 @@ export default function FeedPage() {
   const [photos, setPhotos] = useState<ApiFotografija[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm] = useState('');
   const [jezik, setJezik] = useState('BS');
+  const [uloga, setUloga] = useState<string | null>(null);
 
   useEffect(() => {
     const sacuvani = localStorage.getItem('izabraniJezik');
-    if (sacuvani) setJezik(sacuvani);
+    let animationFrameId: number | null = null;
+    const aktivniJezik = sacuvani || 'BS';
+    const porukaGreske = (aktivniJezik === 'BS' ? PREVODI.BS : PREVODI.EN).greska;
+
+    if (sacuvani) {
+      animationFrameId = window.requestAnimationFrame(() => setJezik(sacuvani));
+    }
+
     const provjeri = () => {
       const trenutni = localStorage.getItem('izabraniJezik');
       if (trenutni) setJezik(trenutni);
@@ -43,15 +53,22 @@ export default function FeedPage() {
     window.addEventListener('storage', provjeri);
 
     // Dohvati feed sa backenda
-    getFeed()
-      .then(data => setPhotos(data))
-      .catch(() => setError(t.greska))
+    Promise.all([getFeed(), getTrenutniKorisnik()])
+      .then(([data, korisnik]) => {
+        setPhotos(data);
+        setUloga(korisnik.uloga);
+      })
+      .catch(() => setError(porukaGreske))
       .finally(() => setLoading(false));
 
-    return () => window.removeEventListener('storage', provjeri);
+    return () => {
+      window.removeEventListener('storage', provjeri);
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+    };
   }, []);
 
   const t = jezik === 'BS' ? PREVODI.BS : PREVODI.EN;
+  const podnaslov = uloga === 'ADMIN' ? t.adminPodnaslov : t.podnaslov;
 
   // Filter po URL-u (backend nema keyword tagove, pretražujemo po ID-u ili broju)
   const filteredPhotos = photos.filter(foto =>
@@ -67,7 +84,7 @@ export default function FeedPage() {
             {t.nazad}
           </Link>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">{t.naslov}</h1>
-          <p className="text-gray-400 mt-2 text-sm md:text-lg">{t.podnaslov}</p>
+          <p className="text-gray-400 mt-2 text-sm md:text-lg">{podnaslov}</p>
         </header>
 
         {/* Greška */}

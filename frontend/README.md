@@ -29,10 +29,30 @@ Aplikacija se otvara na:
 http://localhost:3000
 ```
 
+Ako se aplikacija testira preko lokalne mreze, moze se pokrenuti ovako:
+
+```bash
+npm run dev:network
+```
+
+Skripta sama pronadje LAN adresu i slobodan port. U terminalu ce ispisati nesto kao:
+
+```txt
+Frontend network URL: http://192.168.x.x:3000
+Backend API URL: http://192.168.x.x:8000
+```
+
+Ako je port zauzet, skripta uzima sljedeci slobodan port. Ako se zeli rucno zadati host, moze se poslati `NETWORK_HOST`:
+
+```bash
+NETWORK_HOST=192.168.0.20 npm run dev:network
+```
+
 ## Skripte
 
 ```bash
 npm run dev      # pokretanje development servera
+npm run dev:network  # pokretanje development servera preko lokalne mreze
 npm run build    # production build
 npm run start    # pokretanje buildane aplikacije
 npm run lint     # ESLint provjera
@@ -86,13 +106,16 @@ Tamo se nalaze funkcije za:
 - report funkcije
 - AI tagove
 
-Backend URL je trenutno postavljen u `api.ts`:
+Backend URL se automatski pravi u `api.ts`.
 
-```ts
-const BASE_URL = 'http://localhost:8000';
+Ako je aplikacija otvorena na `localhost`, frontend zove backend na `localhost:8000`.
+Ako je aplikacija otvorena preko network skripte, frontend koristi backend URL iz lokalnog `.network.json` fajla koji napravi backend.
+
+Po potrebi se moze rucno zadati API URL preko env vrijednosti:
+
+```bash
+NEXT_PUBLIC_API_URL=http://192.168.0.20:8001 npm run dev:network
 ```
-
-Ako backend radi na drugom portu, tu vrijednost treba promijeniti.
 
 ## Uloge na frontendu
 

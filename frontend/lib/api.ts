@@ -5,7 +5,67 @@
 // Sada autentifikacija ide preko HttpOnly cookie-a.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE_URL = 'http://localhost:8000';
+const API_PORT = process.env.NEXT_PUBLIC_API_PORT ?? '8000';
+const CONFIGURED_API_URL = process.env.NEXT_PUBLIC_API_URL?.trim();
+
+function getApiBaseUrl(): string {
+  if (CONFIGURED_API_URL) {
+    return CONFIGURED_API_URL.replace(/\/$/, '');
+  }
+
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:${API_PORT}`;
+  }
+
+  return `http://localhost:${API_PORT}`;
+}
+
+const BASE_URL = getApiBaseUrl();
+
+function getMediaUrl(url: string): string {
+  if (!url) return url;
+
+  try {
+    const mediaUrl = new URL(url, BASE_URL);
+    const localBackendHosts = ['localhost', '127.0.0.1', '0.0.0.0'];
+
+    if (
+      typeof window !== 'undefined' &&
+      mediaUrl.pathname.startsWith('/uploads/') &&
+      localBackendHosts.includes(mediaUrl.hostname)
+    ) {
+      mediaUrl.protocol = window.location.protocol;
+      mediaUrl.hostname = window.location.hostname;
+      mediaUrl.port = API_PORT;
+    }
+
+    return mediaUrl.toString();
+  } catch {
+    return url;
+  }
+}
+
+function normalizeApiData<T>(data: T): T {
+  if (Array.isArray(data)) {
+    return data.map((item) => normalizeApiData(item)) as T;
+  }
+
+  if (data && typeof data === 'object') {
+    const normalized = { ...(data as Record<string, unknown>) };
+
+    for (const [key, value] of Object.entries(normalized)) {
+      if (key === 'url' && typeof value === 'string') {
+        normalized[key] = getMediaUrl(value);
+      } else {
+        normalized[key] = normalizeApiData(value);
+      }
+    }
+
+    return normalized as T;
+  }
+
+  return data;
+}
 
 // ─── Tipovi koji odgovaraju backend JSON odgovorima ──────────────────────────
 
@@ -141,7 +201,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
     return undefined as T;
   }
 
-  return JSON.parse(text) as T;
+  return normalizeApiData(JSON.parse(text) as T);
 }
 
 function filenameFromContentDisposition(header: string | null): string | null {

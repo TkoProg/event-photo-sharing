@@ -119,5 +119,4 @@ def sacuvaj_upload_fajl(upload_file: UploadFile) -> str:
 
 
 def napravi_public_url(naziv_fajla: str) -> str:
-    base = settings.backend_base_url.rstrip("/")
-    return f"{base}/uploads/{naziv_fajla}"
+    return f"/uploads/{naziv_fajla}"

@@ -41,6 +41,24 @@ Backend se otvara na:
 http://127.0.0.1:8000
 ```
 
+Ako se aplikacija testira preko lokalne mreze, backend se pokrece ovako:
+
+```bash
+python run_network.py
+```
+
+Skripta sama pronadje LAN adresu i prvi slobodan backend port. U terminalu ce ispisati nesto kao:
+
+```txt
+Backend network URL: http://192.168.x.x:8000
+```
+
+Ako je port zauzet, skripta uzima sljedeci slobodan port. Ako se zeli rucno zadati host ili pocetni port:
+
+```bash
+NETWORK_HOST=192.168.0.20 BACKEND_PORT=8001 python run_network.py
+```
+
 Swagger dokumentacija:
 
 ```txt

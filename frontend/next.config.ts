@@ -1,21 +1,21 @@
 import type { NextConfig } from "next";
 
+const networkHost = process.env.NETWORK_HOST ?? 'localhost';
+const apiPort = process.env.NEXT_PUBLIC_API_PORT ?? '8000';
+const uploadHostnames = ['localhost', '127.0.0.1', networkHost];
+
 const nextConfig: NextConfig = {
+  allowedDevOrigins: [
+    networkHost,
+    '*.local',
+  ],
   images: {
-    remotePatterns: [
-      {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '8000',
-        pathname: '/uploads/**',
-      },
-      {
-        protocol: 'http',
-        hostname: '127.0.0.1',
-        port: '8000',
-        pathname: '/uploads/**',
-      },
-    ],
+    remotePatterns: uploadHostnames.map((hostname) => ({
+      protocol: 'http',
+      hostname,
+      port: apiPort,
+      pathname: '/uploads/**',
+    })),
   },
 };
 

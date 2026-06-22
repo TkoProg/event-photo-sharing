@@ -130,3 +130,21 @@ Gost:
 - vidi dogadjaje na kojima ucestvuje
 - uploaduje fotografije
 - vidi informacije o dogadjaju
+
+## Pokretanje na mrezi
+
+Backend i frontend sami pronalaze LAN adresu i slobodan port. Prvo se pokrene backend, pa frontend.
+
+```bash
+cd backend
+python run_network.py
+```
+
+Backend ce u terminalu ispisati adresu na kojoj radi i sacuvati je u lokalni `.network.json` fajl.
+
+```bash
+cd frontend
+npm run dev:network
+```
+
+Frontend ce procitati backend adresu, pronaci slobodan frontend port i ispisati URL koji treba otvoriti u browseru.

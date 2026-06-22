@@ -61,6 +61,32 @@ def obrisi_auth_cookie(response: Response):
     )
 
 
+def pronadji_korisnika_iz_tokena(
+    token: str | None,
+    session: Session,
+) -> Korisnik | None:
+    if token is None:
+        return None
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
+        )
+        korisnik_id = payload.get("sub")
+
+        if korisnik_id is None:
+            return None
+
+    except JWTError:
+        return None
+
+    korisnik = session.get(Korisnik, int(korisnik_id))
+
+    return korisnik
+
+
 def get_trenutni_korisnik(
     token_iz_headera: Optional[str] = Depends(oauth2_scheme),
     token_iz_cookiea: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
@@ -73,25 +99,7 @@ def get_trenutni_korisnik(
     )
 
     token = token_iz_headera or token_iz_cookiea
-
-    if token is None:
-        raise greska
-
-    try:
-        payload = jwt.decode(
-            token,
-            settings.secret_key,
-            algorithms=[settings.algorithm],
-        )
-        korisnik_id = payload.get("sub")
-
-        if korisnik_id is None:
-            raise greska
-
-    except JWTError:
-        raise greska
-
-    korisnik = session.get(Korisnik, int(korisnik_id))
+    korisnik = pronadji_korisnika_iz_tokena(token, session)
 
     if korisnik is None:
         raise greska
@@ -201,3 +209,21 @@ def logout(response: Response):
 @router.get("/me", response_model=KorisnikResponse)
 def me(korisnik: Korisnik = Depends(get_trenutni_korisnik)):
     return korisnik_u_response(korisnik)
+
+
+@router.get("/session")
+def session_status(
+    token_iz_headera: Optional[str] = Depends(oauth2_scheme),
+    token_iz_cookiea: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
+    session: Session = Depends(get_session),
+):
+    token = token_iz_headera or token_iz_cookiea
+    korisnik = pronadji_korisnika_iz_tokena(token, session)
+
+    if korisnik is None or korisnik.blokiran:
+        return {"authenticated": False, "korisnik": None}
+
+    return {
+        "authenticated": True,
+        "korisnik": korisnik_u_response(korisnik),
+    }

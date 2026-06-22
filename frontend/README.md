@@ -1,36 +1,142 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Flashback Frontend
 
-## Getting Started
+Ovo je frontend dio Flashback aplikacije. Napravljen je u Next.js-u i sluzi kao korisnicki interfejs za login, registraciju, dogadjaje, galeriju, feed, albume, admin panel i ostale stranice.
 
-First, run the development server:
+Frontend ne radi samostalno. Za vecinu funkcija mora biti pokrenut i backend na `http://127.0.0.1:8000`.
+
+## Tehnologije
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- qrcode.react
+- ESLint
+
+## Pokretanje
+
+Iz root foldera projekta:
 
 ```bash
+cd frontend
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Aplikacija se otvara na:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```txt
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Skripte
 
-## Learn More
+```bash
+npm run dev      # pokretanje development servera
+npm run build    # production build
+npm run start    # pokretanje buildane aplikacije
+npm run lint     # ESLint provjera
+```
 
-To learn more about Next.js, take a look at the following resources:
+TypeScript provjera:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npx tsc --noEmit
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Kako je frontend organizovan
 
-## Deploy on Vercel
+```txt
+frontend/app/page.tsx                         Login stranica
+frontend/app/register/page.tsx                Registracija
+frontend/app/dashboard/page.tsx               Pocetni dashboard
+frontend/app/admin/page.tsx                   Admin panel
+frontend/app/organizer/events/page.tsx        Lista dogadjaja
+frontend/app/organizer/events/new/page.tsx    Kreiranje dogadjaja
+frontend/app/events/[id]/page.tsx             Dashboard jednog dogadjaja
+frontend/app/events/[id]/upload/page.tsx      Upload fotografija
+frontend/app/photos/[id]/page.tsx             Detalj jedne fotografije
+frontend/app/feed/page.tsx                    Feed fotografija
+frontend/app/join/page.tsx                    Pridruzivanje preko koda
+frontend/app/report/page.tsx                  Prijava problema ili sugestije
+frontend/app/share/albums/[sharecode]/page.tsx Javni album
+frontend/app/components/AITagReview.tsx       Pregled AI tagova
+frontend/lib/api.ts                           Svi fetch pozivi prema backendu
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API komunikacija
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Svi pozivi prema backendu su centralizovani u:
+
+```txt
+frontend/lib/api.ts
+```
+
+Tamo se nalaze funkcije za:
+
+- login, logout i provjeru sesije
+- registraciju
+- dogadjaje
+- fotografije i upload
+- komentare, lajkove i favorite
+- tagovanje korisnika
+- albume
+- feed
+- admin funkcije
+- report funkcije
+- AI tagove
+
+Backend URL je trenutno postavljen u `api.ts`:
+
+```ts
+const BASE_URL = 'http://localhost:8000';
+```
+
+Ako backend radi na drugom portu, tu vrijednost treba promijeniti.
+
+## Uloge na frontendu
+
+Frontend prikazuje razlicite opcije zavisno od uloge korisnika.
+
+Admin:
+
+- ima admin panel
+- vidi sve dogadjaje i fotografije
+- moze upravljati korisnicima i prijavama
+
+Organizator:
+
+- kreira dogadjaj
+- uredjuje postavke dogadjaja
+- vidi ucesnike
+- upravlja albumima
+
+Gost:
+
+- pridruzuje se dogadjaju preko koda
+- vidi svoje dogadjaje
+- uploaduje slike
+- vidi osnovne informacije o dogadjaju
+
+## Jezici
+
+Aplikacija koristi dva jezika:
+
+- BS
+- EN
+
+Prevodi su trenutno definisani lokalno po stranicama kroz objekte kao `PREVODI`.
+
+## AI tagovi na frontendu
+
+AI tagovi se koriste na upload/review ekranu i na detalju fotografije. Korisnik moze prihvatiti, odbiti ili obrisati AI tag ako ima dozvolu.
+
+## Lint
+
+ESLint je podesen u:
+
+```txt
+frontend/eslint.config.mjs
+```
+
+Trenutno `npm run lint` prolazi, ali ostavlja nekoliko warninga. Warningi nisu blokirajuci, ali ih je dobro srediti kasnije ako bude vremena.

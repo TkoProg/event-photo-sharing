@@ -12,6 +12,7 @@ from app.routers.auth import get_trenutni_korisnik
 from app.routers.helpers import (
     fotografija_u_response,
     korisnik_ima_pristup_eventu,
+    korisnik_moze_urediti_event,
     pronadji_fotografiju_ili_greska,
 )
 from app.schemas.fotografija import AITagResponse, FotografijaResponse
@@ -279,7 +280,10 @@ def obrisi_ai_tag(
     fotografija = pronadji_fotografiju_ili_greska(session, photo_id)
     event = session.get(Event, fotografija.event_id)
 
-    if event is None or fotografija.korisnik_id != korisnik.id:
+    if event is None or (
+        fotografija.korisnik_id != korisnik.id
+        and not korisnik_moze_urediti_event(korisnik, event)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Nemate pristup ovoj fotografiji.",
@@ -300,4 +304,3 @@ def obrisi_ai_tag(
     session.refresh(fotografija)
 
     return fotografija_u_response(session, fotografija, korisnik)
-

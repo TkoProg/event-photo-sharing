@@ -19,7 +19,7 @@ function FloatingNavItem({
       href={href}
       aria-label={label}
       title={label}
-      className={`group flex h-14 w-20 items-center justify-center rounded-full transition-all duration-300 ${
+      className={`group flex h-12 w-14 shrink-0 items-center justify-center rounded-full transition-all duration-300 sm:h-14 sm:w-20 [&_svg]:h-6 [&_svg]:w-6 sm:[&_svg]:h-7 sm:[&_svg]:w-7 ${
         active
           ? 'bg-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_30px_rgba(255,255,255,0.16)]'
           : 'hover:bg-white/10'
@@ -129,15 +129,15 @@ export default function DashboardPage() {
   const jeGost = uloga === 'GOST';
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans overflow-hidden relative flex flex-col">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[560px] bg-gradient-to-b from-[#e60023]/20 to-transparent blur-[130px] pointer-events-none"></div>
+    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans overflow-x-hidden relative flex flex-col">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[420px] sm:h-[560px] bg-gradient-to-b from-[#e60023]/20 to-transparent blur-[100px] sm:blur-[130px] pointer-events-none"></div>
 
-      <nav className="relative z-10 flex justify-between items-center px-8 py-6 max-w-7xl mx-auto w-full">
-        <div className="text-xl font-bold tracking-tighter">
+      <nav className="relative z-10 flex justify-between items-center gap-3 px-4 py-4 sm:px-8 sm:py-6 max-w-7xl mx-auto w-full">
+        <div className="text-lg sm:text-xl font-bold tracking-tighter">
           Flash<span className="text-[#e60023]">back</span>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <button 
             type="button"
             onClick={() => promijeniJezik(jezik === 'BS' ? 'EN' : 'BS')}
@@ -149,32 +149,32 @@ export default function DashboardPage() {
           <button 
             type="button"
             onClick={handleLogout}
-            className="px-5 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors bg-transparent border-none cursor-pointer font-sans"
+            className="px-2 py-2 text-xs font-medium text-gray-400 hover:text-white transition-colors bg-transparent border-none cursor-pointer font-sans sm:px-5 sm:text-sm"
           >
             {t.odjaviSe}
           </button>
         </div>
       </nav>
 
-      <main className="relative z-10 flex-grow flex flex-col items-center pt-12 md:pt-16 px-6 text-center max-w-5xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-gray-300 mb-10 backdrop-blur-md">
+      <main className="relative z-10 flex-grow flex flex-col items-center pt-7 px-4 text-center max-w-5xl mx-auto sm:px-6 sm:pt-12 md:pt-16">
+        <div className="inline-flex max-w-full items-center justify-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-gray-300 mb-6 backdrop-blur-md sm:px-4 sm:text-xs sm:mb-10">
           <span className="w-2 h-2 rounded-full bg-[#e60023] animate-pulse"></span>
           {t.badge}
         </div>
         
-        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-500">
+        <h1 className="text-4xl leading-[1.05] sm:text-5xl md:text-7xl font-extrabold tracking-tight mb-5 sm:mb-8 bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-500">
           {t.naslovPrviDio} <br /> {t.naslovDrugiDio}
         </h1>
         
-        <p className="text-lg text-gray-400 mb-20 max-w-xl font-light leading-relaxed">
+        <p className="text-sm sm:text-base md:text-lg text-gray-400 mb-10 sm:mb-16 md:mb-20 max-w-xl font-light leading-relaxed">
           {t.opis}
         </p>
 
         {jeGost && (
-          <Link href="/join" className="w-full max-w-xl mb-14 group">
-            <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-5 group-hover:border-[#e60023]/50 transition-all">
-              <div className="flex items-center gap-4 text-left">
-                <div className="w-12 h-12 bg-[#e60023]/20 rounded-2xl flex items-center justify-center text-[#e60023] shrink-0">
+          <Link href="/join" className="w-full max-w-xl mb-10 sm:mb-14 group">
+            <div className="bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-5 group-hover:border-[#e60023]/50 transition-all sm:p-6 sm:rounded-[2rem]">
+              <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-4 sm:text-left">
+                <div className="w-11 h-11 bg-[#e60023]/20 rounded-2xl flex items-center justify-center text-[#e60023] shrink-0 sm:w-12 sm:h-12">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="24"
@@ -194,8 +194,8 @@ export default function DashboardPage() {
                 </div>
 
                 <div>
-                  <h3 className="font-bold text-lg text-white">{t.pridruziSeNaslov}</h3>
-                  <p className="text-gray-500 text-xs sm:text-sm">{t.pridruziSeOpis}</p>
+                  <h3 className="font-bold text-base text-white sm:text-lg">{t.pridruziSeNaslov}</h3>
+                  <p className="text-gray-500 text-xs leading-relaxed sm:text-sm">{t.pridruziSeOpis}</p>
                 </div>
               </div>
 
@@ -206,8 +206,8 @@ export default function DashboardPage() {
           </Link>
         )}
 
-        <div className="relative w-full max-w-4xl h-[320px] sm:h-[400px] mb-20">
-          <div className="absolute top-10 left-12 sm:left-5 w-40 sm:w-64 h-48 sm:h-66 bg-gray-800 rounded-2xl rotate-[-12deg] overflow-hidden border border-white/10 shadow-2xl hover:rotate-0 hover:scale-110 transition-all duration-500 cursor-pointer hover:z-30">
+        <div className="relative w-full max-w-4xl h-[250px] sm:h-[360px] md:h-[400px] mb-12 sm:mb-16 md:mb-20">
+          <div className="absolute top-12 left-1/2 -translate-x-[95%] w-[8.5rem] h-[10.5rem] bg-gray-800 rounded-2xl rotate-[-12deg] overflow-hidden border border-white/10 shadow-2xl hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer hover:z-30 sm:top-10 sm:left-5 sm:translate-x-0 sm:w-64 sm:h-[16.5rem] sm:hover:scale-110">
             <img 
               src="https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=600" 
               className="w-full h-full object-cover opacity-70 hover:opacity-100 transition-opacity" 
@@ -215,7 +215,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-56 sm:w-80 h-66 sm:h-88 bg-gray-800 rounded-2xl z-20 overflow-hidden border border-white/20 shadow-[0_0_50px_rgba(230,0,35,0.15)] hover:scale-105 transition-all duration-500 cursor-pointer">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-60 bg-gray-800 rounded-2xl z-20 overflow-hidden border border-white/20 shadow-[0_0_50px_rgba(230,0,35,0.15)] hover:scale-105 transition-all duration-500 cursor-pointer sm:w-80 sm:h-[22rem]">
             <img 
               src="https://images.unsplash.com/photo-1527529482837-4698179dc6ce?q=80&w=800" 
               className="w-full h-full object-cover" 
@@ -223,7 +223,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          <div className="absolute top-10 right-12 sm:right-5 w-40 sm:w-64 h-48 sm:h-66 bg-gray-800 rounded-2xl rotate-[12deg] overflow-hidden border border-white/10 shadow-2xl hover:rotate-0 hover:scale-110 transition-all duration-500 cursor-pointer hover:z-30">
+          <div className="absolute top-12 left-1/2 translate-x-[-5%] w-[8.5rem] h-[10.5rem] bg-gray-800 rounded-2xl rotate-[12deg] overflow-hidden border border-white/10 shadow-2xl hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer hover:z-30 sm:top-10 sm:left-auto sm:right-5 sm:translate-x-0 sm:w-64 sm:h-[16.5rem] sm:hover:scale-110">
             <img 
               src="https://images.unsplash.com/photo-1530103043960-ef38714abb15?q=80&w=600" 
               className="w-full h-full object-cover opacity-70 hover:opacity-100 transition-opacity" 
@@ -232,12 +232,12 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-35 w-full max-w-lg mx-auto z-20 pb-20">
-          <div className="relative">
+        <div className="flex flex-col items-center gap-10 w-full max-w-lg mx-auto z-20 pb-12 sm:gap-16 sm:pb-20">
+          <div className="relative max-w-full">
             <div className="absolute -inset-4 rounded-full bg-[#e60023]/15 blur-3xl"></div>
             <div className="absolute -inset-2 rounded-full bg-white/10 blur-2xl"></div>
 
-            <div className="relative flex items-center gap-4 rounded-full border border-white/20 bg-black/55 px-5 py-2.5 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_35px_rgba(255,255,255,0.08),0_0_70px_rgba(230,0,35,0.14),0_25px_70px_rgba(0,0,0,0.65)]">
+            <div className="relative flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full border border-white/20 bg-black/55 px-3 py-2 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_35px_rgba(255,255,255,0.08),0_0_70px_rgba(230,0,35,0.14),0_25px_70px_rgba(0,0,0,0.65)] sm:gap-4 sm:px-5 sm:py-2.5">
               <FloatingNavItem href="/dashboard" label={t.navHome} active>
                 <svg 
                   xmlns="http://www.w3.org/2000/svg" 
@@ -311,9 +311,9 @@ export default function DashboardPage() {
 
           {jeAdmin && (
             <Link href="/admin" className="w-full block group">
-              <div className="bg-white/5 border border-white/10 p-12 rounded-[2rem] backdrop-blur-xl flex items-center justify-between group-hover:border-[#e60023]/50 transition-all">
-                <div className="flex items-center gap-4 text-left">
-                  <div className="w-12 h-12 bg-[#e60023]/20 rounded-2xl flex items-center justify-center text-[#e60023]">
+              <div className="bg-white/5 border border-white/10 p-5 rounded-3xl backdrop-blur-xl flex items-center justify-between gap-4 group-hover:border-[#e60023]/50 transition-all sm:p-8 md:p-12 sm:rounded-[2rem]">
+                <div className="flex items-center gap-3 text-left sm:gap-4">
+                  <div className="w-11 h-11 bg-[#e60023]/20 rounded-2xl flex items-center justify-center text-[#e60023] shrink-0 sm:w-12 sm:h-12">
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
                       width="24" 
@@ -331,8 +331,8 @@ export default function DashboardPage() {
                   </div>
 
                   <div>
-                    <h3 className="font-bold text-lg text-white">{t.adminNaslov}</h3>
-                    <p className="text-gray-500 text-xs text-left">{t.adminOpis}</p>
+                    <h3 className="font-bold text-base text-white sm:text-lg">{t.adminNaslov}</h3>
+                    <p className="text-gray-500 text-xs text-left leading-relaxed">{t.adminOpis}</p>
                   </div>
                 </div>
 

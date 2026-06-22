@@ -214,8 +214,11 @@ export async function logout(): Promise<void> {
 
 // ─── EVENTI ───────────────────────────────────────────────────────────────────
 
-export async function getMojiEventi(): Promise<ApiEvent[]> {
-  const res = await fetch(`${BASE_URL}/events`, {
+export async function getMojiEventi(pretraga = ''): Promise<ApiEvent[]> {
+  const q = pretraga.trim();
+  const query = q ? `?q=${encodeURIComponent(q)}` : '';
+
+  const res = await fetch(`${BASE_URL}/events${query}`, {
     method: 'GET',
     credentials: 'include',
     headers: authHeaders(),
@@ -570,8 +573,11 @@ export async function getAdminStats(): Promise<ApiAdminStats> {
   return handleResponse(res);
 }
 
-export async function getAdminUsers(): Promise<ApiKorisnik[]> {
-  const res = await fetch(`${BASE_URL}/admin/users`, {
+export async function getAdminUsers(pretraga = ''): Promise<ApiKorisnik[]> {
+  const q = pretraga.trim();
+  const query = q ? `?q=${encodeURIComponent(q)}` : '';
+
+  const res = await fetch(`${BASE_URL}/admin/users${query}`, {
     method: 'GET',
     credentials: 'include',
     headers: authHeaders(),

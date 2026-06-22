@@ -70,6 +70,24 @@ def event_u_response(session: Session, event: Event) -> EventResponse:
     )
 
 
+def normalizuj_pretragu(q: str | None) -> str | None:
+    if q is None:
+        return None
+
+    pretraga = q.strip().lower()
+    return pretraga or None
+
+
+def event_odgovara_pretrazi(event: Event, pretraga: str | None) -> bool:
+    if pretraga is None:
+        return True
+
+    naziv = event.naziv.lower()
+    kod = event.kod.lower()
+
+    return pretraga in naziv or pretraga in kod
+
+
 def korisnik_ima_pristup_eventu(
     session: Session,
     korisnik: Korisnik,
@@ -159,9 +177,12 @@ def join_event(
 
 @router.get("", response_model=list[EventResponse])
 def lista_eventa(
+    q: str | None = None,
     session: Session = Depends(get_session),
     korisnik: Korisnik = Depends(get_trenutni_korisnik),
 ):
+    pretraga = normalizuj_pretragu(q)
+
     if korisnik.uloga == UlogaKorisnika.ADMIN:
         eventi = session.exec(select(Event)).all()
 
@@ -186,7 +207,8 @@ def lista_eventa(
     rezultat = []
 
     for event in eventi:
-        rezultat.append(event_u_response(session, event))
+        if event_odgovara_pretrazi(event, pretraga):
+            rezultat.append(event_u_response(session, event))
 
     return rezultat
 

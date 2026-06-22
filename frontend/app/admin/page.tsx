@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   deleteAdminUser,
@@ -24,6 +24,10 @@ interface PrevodStranice {
   statPrijave: string;
   tabelaKorisnici: string;
   tabelaPrijave: string;
+  pretragaKorisnikaPlaceholder: string;
+  dugmePretrazi: string;
+  dugmeOcisti: string;
+  nemaKorisnika: string;
   kolonaIme: string;
   kolonaEmail: string;
   kolonaUloga: string;
@@ -61,6 +65,10 @@ const PREVODI_PODACI: Record<string, PrevodStranice> = {
     statPrijave: "Prijave korisnika",
     tabelaKorisnici: "Upravljanje korisnicima",
     tabelaPrijave: "Prijave problema i sugestije",
+    pretragaKorisnikaPlaceholder: "Pretraži korisnike po imenu ili emailu",
+    dugmePretrazi: "Pretraži",
+    dugmeOcisti: "Očisti",
+    nemaKorisnika: "Nema korisnika za unesenu pretragu.",
     kolonaIme: "Ime",
     kolonaEmail: "Email",
     kolonaUloga: "Uloga",
@@ -100,6 +108,10 @@ const PREVODI_PODACI: Record<string, PrevodStranice> = {
     statPrijave: "User Reports",
     tabelaKorisnici: "User Management",
     tabelaPrijave: "Problem reports and suggestions",
+    pretragaKorisnikaPlaceholder: "Search users by name or email",
+    dugmePretrazi: "Search",
+    dugmeOcisti: "Clear",
+    nemaKorisnika: "No users match your search.",
     kolonaIme: "Name",
     kolonaEmail: "Email",
     kolonaUloga: "Role",
@@ -139,6 +151,7 @@ export default function AdminDashboardPage() {
   });
   const [stats, setStats] = useState<ApiAdminStats | null>(null);
   const [korisnici, setKorisnici] = useState<ApiKorisnik[]>([]);
+  const [pretragaKorisnika, setPretragaKorisnika] = useState('');
   const [reporti, setReporti] = useState<ApiReport[]>([]);
   const [trenutniAdminId, setTrenutniAdminId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -163,7 +176,7 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const ucitajAdminPodatke = async (aktivniJezik = jezik) => {
+  const ucitajAdminPodatke = useCallback(async (aktivniJezik: string) => {
     const aktivniPrevodi = PREVODI_PODACI[aktivniJezik] || PREVODI_PODACI.BS;
 
     try {
@@ -196,6 +209,15 @@ export default function AdminDashboardPage() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const ucitajKorisnike = async (tekstPretrage = pretragaKorisnika) => {
+    try {
+      setKorisnici(await getAdminUsers(tekstPretrage));
+    } catch (err: unknown) {
+      const kodGreske = err instanceof Error ? err.message : '';
+      alert((kodGreske && t[kodGreske]) || kodGreske || (jezik === 'BS' ? 'Greška pri pretrazi korisnika.' : 'Error searching users.'));
+    }
   };
 
   useEffect(() => {
@@ -214,12 +236,12 @@ export default function AdminDashboardPage() {
     return () => {
       window.removeEventListener('storage', provjeriJezik);
     };
-  }, []);
+  }, [ucitajAdminPodatke]);
 
   const handleBlockToggle = async (korisnikId: number, trenutnoBlokiran: boolean) => {
     try {
       await toggleBlokirajKorisnika(korisnikId, !trenutnoBlokiran);
-      const azuriraniKorisnici = await getAdminUsers();
+      const azuriraniKorisnici = await getAdminUsers(pretragaKorisnika);
       setKorisnici(azuriraniKorisnici);
     } catch (err: unknown) {
       const kodGreske = err instanceof Error ? err.message : '';
@@ -232,6 +254,16 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handlePretragaKorisnikaSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    await ucitajKorisnike(pretragaKorisnika);
+  };
+
+  const ocistiPretraguKorisnika = async () => {
+    setPretragaKorisnika('');
+    await ucitajKorisnike('');
+  };
+
   const handleDeleteUser = async (korisnikId: number) => {
     if (!window.confirm(t.potvrdiBrisanje)) return;
 
@@ -241,7 +273,7 @@ export default function AdminDashboardPage() {
 
       const [azuriraniStats, azuriraniKorisnici] = await Promise.all([
         getAdminStats(),
-        getAdminUsers()
+        getAdminUsers(pretragaKorisnika)
       ]);
 
       setStats(azuriraniStats);
@@ -352,7 +384,36 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-xl mb-10">
-              <h2 className="text-xl font-bold mb-6 tracking-tight">{t.tabelaKorisnici}</h2>
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+                <h2 className="text-xl font-bold tracking-tight">{t.tabelaKorisnici}</h2>
+
+                <form onSubmit={handlePretragaKorisnikaSubmit} className="flex flex-col sm:flex-row gap-2 lg:w-[540px]">
+                  <input
+                    type="search"
+                    value={pretragaKorisnika}
+                    onChange={(e) => setPretragaKorisnika(e.target.value)}
+                    placeholder={t.pretragaKorisnikaPlaceholder}
+                    className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-white placeholder:text-gray-600 outline-none focus:border-[#e60023]/60 focus:bg-white/[0.07] transition-all"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      className="px-4 py-2.5 rounded-2xl bg-[#e60023] text-xs font-bold text-white hover:bg-[#c4001d] transition-colors"
+                    >
+                      {t.dugmePretrazi}
+                    </button>
+                    {pretragaKorisnika.trim() && (
+                      <button
+                        type="button"
+                        onClick={ocistiPretraguKorisnika}
+                        className="px-4 py-2.5 rounded-2xl border border-white/10 bg-white/5 text-xs font-bold text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        {t.dugmeOcisti}
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -366,7 +427,13 @@ export default function AdminDashboardPage() {
                   </thead>
 
                   <tbody className="divide-y divide-white/5 text-sm font-light">
-                    {korisnici.map((user: ApiKorisnik) => {
+                    {korisnici.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-gray-500">
+                          {t.nemaKorisnika}
+                        </td>
+                      </tr>
+                    ) : korisnici.map((user: ApiKorisnik) => {
                       const isBlokiran = !!user.blokiran;
                       const isCurrentAdmin = trenutniAdminId === user.id;
 

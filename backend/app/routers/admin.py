@@ -11,7 +11,7 @@ from app.models.lajk import Lajk
 from app.models.prijava_problema import PrijavaProblema
 from app.models.tag import Tag
 from app.routers.auth import get_trenutni_korisnik
-from app.routers.events import event_u_response
+from app.routers.events import event_odgovara_pretrazi, event_u_response, normalizuj_pretragu
 from app.routers.helpers import fotografija_u_response
 from app.schemas.admin import AdminBlockUserRequest, AdminStatsResponse
 from app.schemas.auth import KorisnikResponse
@@ -31,6 +31,16 @@ def korisnik_u_response(korisnik: Korisnik) -> KorisnikResponse:
         jezik=korisnik.jezik,
         blokiran=korisnik.blokiran,
     )
+
+
+def korisnik_odgovara_pretrazi(korisnik: Korisnik, pretraga: str | None) -> bool:
+    if pretraga is None:
+        return True
+
+    ime = korisnik.ime.lower()
+    email = korisnik.email.lower()
+
+    return pretraga in ime or pretraga in email
 
 
 def zahtijevaj_admina(korisnik: Korisnik = Depends(get_trenutni_korisnik)) -> Korisnik:
@@ -139,15 +149,18 @@ def admin_stats(
 
 @router.get("/users", response_model=list[KorisnikResponse])
 def admin_users(
+    q: str | None = None,
     session: Session = Depends(get_session),
     _: Korisnik = Depends(zahtijevaj_admina),
 ):
+    pretraga = normalizuj_pretragu(q)
     korisnici = session.exec(select(Korisnik)).all()
 
     rezultat = []
 
     for korisnik in korisnici:
-        rezultat.append(korisnik_u_response(korisnik))
+        if korisnik_odgovara_pretrazi(korisnik, pretraga):
+            rezultat.append(korisnik_u_response(korisnik))
 
     return rezultat
 
@@ -221,15 +234,18 @@ def admin_obrisi_korisnika(
 
 @router.get("/events", response_model=list[EventResponse])
 def admin_eventi(
+    q: str | None = None,
     session: Session = Depends(get_session),
     _: Korisnik = Depends(zahtijevaj_admina),
 ):
+    pretraga = normalizuj_pretragu(q)
     eventi = session.exec(select(Event)).all()
 
     rezultat = []
 
     for event in eventi:
-        rezultat.append(event_u_response(session, event))
+        if event_odgovara_pretrazi(event, pretraga):
+            rezultat.append(event_u_response(session, event))
 
     return rezultat
 

@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { getMojiEventi, getTrenutniKorisnik, ApiEvent } from '../../../lib/api'; // Uvozimo funkciju i tip
 
@@ -9,9 +9,27 @@ export default function EventsListPage() {
   
   
   const [eventi, setEventi] = useState<ApiEvent[]>([]);
+  const [pretraga, setPretraga] = useState('');
   const [loading, setLoading] = useState(true);
   const [greska, setGreska] = useState('');
   const [kopiranKodEventa, setKopiranKodEventa] = useState<number | null>(null);
+
+  const ucitajEvente = useCallback(async (tekstPretrage: string) => {
+    try {
+      setLoading(true);
+      const [korisnik, podaci] = await Promise.all([
+        getTrenutniKorisnik(),
+        getMojiEventi(tekstPretrage),
+      ]);
+      setUloga(korisnik.uloga);
+      setEventi(podaci);
+    } catch (err: unknown) {
+      setGreska(err instanceof Error ? err.message : 'Greška pri učitavanju događaja.');
+      setUloga(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     // 1. Jezik provjera
@@ -29,36 +47,28 @@ export default function EventsListPage() {
 
     window.addEventListener('storage', provjeriJezik);
 
-    
-    const ucitajEvente = async () => {
-      try {
-        setLoading(true);
-        const [korisnik, podaci] = await Promise.all([
-          getTrenutniKorisnik(),
-          getMojiEventi(),
-        ]);
-        setUloga(korisnik.uloga);
-        setEventi(podaci);
-      } catch (err: unknown) {
-        setGreska(err instanceof Error ? err.message : 'Greška pri učitavanju događaja.');
-        setUloga(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    ucitajEvente();
+    void Promise.resolve().then(() => ucitajEvente(''));
 
     return () => {
       window.removeEventListener('storage', provjeriJezik);
       if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [ucitajEvente]);
 
   const promijeniJezik = (noviJezik: string) => {
     setJezik(noviJezik);
     localStorage.setItem('izabraniJezik', noviJezik);
     window.dispatchEvent(new Event('storage'));
+  };
+
+  const handlePretragaSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    await ucitajEvente(pretraga);
+  };
+
+  const ocistiPretragu = async () => {
+    setPretraga('');
+    await ucitajEvente('');
   };
 
   const kopirajKod = async (eventId: number, kod: string, e: React.MouseEvent<HTMLButtonElement>) => {
@@ -92,25 +102,33 @@ export default function EventsListPage() {
       naslov: "Moji događaji",
       adminNaslov: "Pregled svih događaja",
       dugmeNovi: "+ Novi događaj",
+      pretragaPlaceholder: "Pretraži po nazivu ili kodu događaja",
+      dugmePretrazi: "Pretraži",
+      dugmeOcisti: "Očisti",
       kodGosta: "Kod za goste",
       kopirajKod: "Kopiraj kod",
       kopirano: "Kopirano",
       nazad: "← Nazad na početak",
       ucitavanje: "Učitavanje događaja...",
       nemaEventa: "Nemate kreiranih događaja. Kreirajte svoj prvi klikom na dugme iznad!",
-      nemaEventaBezKreiranja: "Nemate događaja za prikaz."
+      nemaEventaBezKreiranja: "Nemate događaja za prikaz.",
+      nemaRezultata: "Nema događaja za unesenu pretragu."
     },
     EN: {
       naslov: "My Events",
       adminNaslov: "All events overview",
       dugmeNovi: "+ New Event",
+      pretragaPlaceholder: "Search by event name or code",
+      dugmePretrazi: "Search",
+      dugmeOcisti: "Clear",
       kodGosta: "Guest code",
       kopirajKod: "Copy code",
       kopirano: "Copied",
       nazad: "← Back to home",
       ucitavanje: "Loading events...",
       nemaEventa: "No events created yet. Create your first event by clicking the button above!",
-      nemaEventaBezKreiranja: "No events to display."
+      nemaEventaBezKreiranja: "No events to display.",
+      nemaRezultata: "No events match your search."
     }
   };
 
@@ -141,6 +159,33 @@ export default function EventsListPage() {
           </div>
         </div>
 
+        <form onSubmit={handlePretragaSubmit} className="mb-6 flex flex-col sm:flex-row gap-3">
+          <input
+            type="search"
+            value={pretraga}
+            onChange={(e) => setPretraga(e.target.value)}
+            placeholder={t.pretragaPlaceholder}
+            className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-gray-600 outline-none focus:border-[#e60023]/60 focus:bg-white/[0.07] transition-all"
+          />
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="px-5 py-3 rounded-2xl bg-[#e60023] text-sm font-bold text-white hover:bg-[#c4001d] transition-colors"
+            >
+              {t.dugmePretrazi}
+            </button>
+            {pretraga.trim() && (
+              <button
+                type="button"
+                onClick={ocistiPretragu}
+                className="px-5 py-3 rounded-2xl border border-white/10 bg-white/5 text-sm font-bold text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                {t.dugmeOcisti}
+              </button>
+            )}
+          </div>
+        </form>
+
         {/* Prikaz greške ako backend zašteka */}
         {greska && (
           <div className="p-4 bg-red-500/20 border border-red-500/40 rounded-2xl text-sm text-red-400 mb-6">
@@ -156,7 +201,11 @@ export default function EventsListPage() {
         ) : eventi.length === 0 ? (
           /* Prikaz poruke ako je baza prazna */
           <div className="text-center text-gray-500 text-sm py-12 font-light border border-dashed border-white/10 rounded-[2rem] bg-white/5 p-8">
-            {mozeKreiratiEvent ? t.nemaEventa : t.nemaEventaBezKreiranja}
+            {pretraga.trim()
+              ? t.nemaRezultata
+              : mozeKreiratiEvent
+                ? t.nemaEventa
+                : t.nemaEventaBezKreiranja}
           </div>
         ) : (
          

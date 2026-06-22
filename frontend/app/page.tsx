@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { login, getTrenutniKorisnik } from '../lib/api';
+import { login, getAuthSession } from '../lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,7 +16,15 @@ export default function LoginPage() {
 
   useEffect(() => {
     const sacuvaniJezik = localStorage.getItem('izabraniJezik');
-    if (sacuvaniJezik) setJezik(sacuvaniJezik);
+    let animationFrameId: number | null = null;
+
+    if (sacuvaniJezik) {
+      animationFrameId = window.requestAnimationFrame(() => setJezik(sacuvaniJezik));
+    }
+
+    return () => {
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+    };
   }, []);
 
   useEffect(() => {
@@ -24,10 +32,15 @@ export default function LoginPage() {
 
     const provjeriDaLiJeVecPrijavljen = async () => {
       try {
-        await getTrenutniKorisnik();
+        const sesija = await getAuthSession();
+
+        if (aktivno && sesija.authenticated) {
+          router.replace('/dashboard');
+          return;
+        }
 
         if (aktivno) {
-          router.replace('/dashboard');
+          setProvjeraPrijave(false);
         }
       } catch {
         if (aktivno) {

@@ -200,6 +200,16 @@ export async function getTrenutniKorisnik(): Promise<ApiKorisnik> {
   return handleResponse(res);
 }
 
+export async function getAuthSession(): Promise<{ authenticated: boolean; korisnik: ApiKorisnik | null }> {
+  const res = await fetch(`${BASE_URL}/auth/session`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: authHeaders(),
+  });
+
+  return handleResponse(res);
+}
+
 export async function logout(): Promise<void> {
   localStorage.removeItem('token');
 

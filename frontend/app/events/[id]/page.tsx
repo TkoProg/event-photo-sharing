@@ -20,6 +20,7 @@ const TABS_RAW = [
   { id: 'photos', bs: 'Fotografije', en: 'Photos' },
   { id: 'albums', bs: 'Albumi', en: 'Albums' },
   { id: 'participants', bs: 'Učesnici', en: 'Participants' },
+  { id: 'info', bs: 'Informacije', en: 'Information' },
   { id: 'settings', bs: 'Postavke', en: 'Settings' },
 ] as const;
 type TabId = (typeof TABS_RAW)[number]['id'];
@@ -27,6 +28,7 @@ type TabId = (typeof TABS_RAW)[number]['id'];
 const PREVODI = {
   BS: {
     nazad: '← Moji događaji', dobrodosli: 'Dobrodošli u kontrolnu ploču događaja.',
+    dobrodosliGost: 'Dobro došli na događaj.',
     galerija: 'Galerija medija',
     dodajSlike: '+ Slike / Video',
     galerija_prazna: 'Galerija je prazna. Budite prvi koji će dodati sliku ili video.', zatvori: 'Zatvori',
@@ -49,7 +51,9 @@ const PREVODI = {
     ucesnikUklonjen: 'Učesnik je uklonjen.',
     simuliraj: '+ Simuliraj login učesnika', josNiko: 'Još niko se nije prijavio.',
     osnovneInfo: 'Osnovne informacije', osnovneInfoOpis: 'Ažurirajte ključne detalje.',
+    infoOpis: 'Pregled ključnih detalja događaja.',
     nazivDogadjaja: 'Naziv događaja', datum: 'Datum', lokacija: 'Lokacija', opis: 'Opis',
+    nemaOpisa: 'Opis nije dodan.',
     privatnost: 'Privatnost', privatnostOpis: 'Upravljajte pristupom.',
     privatanDogadjaj: 'Status događaja',
     potrebanKod: 'Događaj je zatvoren za goste',
@@ -76,6 +80,7 @@ const PREVODI = {
   },
   EN: {
     nazad: '← My events', dobrodosli: 'Welcome to the event dashboard.',
+    dobrodosliGost: 'Welcome to the event.',
     galerija: 'Media gallery',
     dodajSlike: '+ Photos / Video',
     galerija_prazna: 'The gallery is empty. Be the first to add a photo or video.', zatvori: 'Close',
@@ -98,7 +103,9 @@ const PREVODI = {
     ucesnikUklonjen: 'Participant removed.',
     simuliraj: '+ Simulate login', josNiko: 'Nobody joined yet.',
     osnovneInfo: 'Basic information', osnovneInfoOpis: 'Update key details.',
+    infoOpis: 'Review the key event details.',
     nazivDogadjaja: 'Event name', datum: 'Date', lokacija: 'Location', opis: 'Description',
+    nemaOpisa: 'No description added.',
     privatnost: 'Privacy', privatnostOpis: 'Manage access.',
     privatanDogadjaj: 'Event status',
     potrebanKod: 'Event is closed for guests',
@@ -897,6 +904,83 @@ function SettingsTab({ eventId, t }: { eventId: string; t: T }) {
   );
 }
 
+// ─── Tab: Information ────────────────────────────────────────────────────────
+function InfoTab({ eventId, t, jezik }: { eventId: string; t: T; jezik: string }) {
+  const [event, setEvent] = useState<Awaited<ReturnType<typeof getEvent>> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { message: toastMsg, show: showToast } = useToast();
+
+  useEffect(() => {
+    getEvent(Number(eventId))
+      .then(setEvent)
+      .catch(() => showToast(t.greska))
+      .finally(() => setLoading(false));
+  }, [eventId, showToast, t.greska]);
+
+  const formatDate = (datum: string) => {
+    try {
+      return new Date(datum).toLocaleDateString(jezik === 'BS' ? 'bs-BA' : 'en-US', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch {
+      return datum;
+    }
+  };
+
+  if (loading) return (
+    <div className="max-w-2xl space-y-4 animate-pulse">
+      {[1,2,3,4].map(i => <div key={i} className="h-16 rounded-2xl bg-white/5" />)}
+    </div>
+  );
+
+  if (!event) return null;
+
+  return (
+    <div className="max-w-2xl space-y-6 animate-in fade-in duration-500 pb-20">
+      <div>
+        <h2 className="text-3xl font-extrabold tracking-tight">{t.osnovneInfo}</h2>
+        <p className="text-gray-500 text-sm mt-1">{t.infoOpis}</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-[#111] border border-white/5 rounded-3xl p-5">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t.nazivDogadjaja}</p>
+          <p className="text-lg font-bold text-white">{event.naziv}</p>
+        </div>
+
+        <div className="bg-[#111] border border-white/5 rounded-3xl p-5">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t.datum}</p>
+          <p className="text-lg font-bold text-white">{formatDate(event.datum)}</p>
+        </div>
+
+        <div className="bg-[#111] border border-white/5 rounded-3xl p-5">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t.lokacija}</p>
+          <p className="text-lg font-bold text-white">{event.lokacija || '-'}</p>
+        </div>
+
+        <div className="bg-[#111] border border-white/5 rounded-3xl p-5">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t.privatanDogadjaj}</p>
+          <p className="text-lg font-bold text-white">{event.aktivan ? t.aktivan : t.blokiran}</p>
+        </div>
+      </div>
+
+      <div className="bg-[#111] border border-white/5 rounded-3xl p-5">
+        <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t.opis}</p>
+        <p className="text-sm leading-relaxed text-gray-300 whitespace-pre-wrap">{event.opis || t.nemaOpisa}</p>
+      </div>
+
+      <div className="bg-[#111] border border-white/5 rounded-3xl p-5">
+        <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t.pristupKodNaslov}</p>
+        <p className="font-mono text-3xl font-black tracking-widest text-white">{event.kod}</p>
+      </div>
+
+      <Toast message={toastMsg} />
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function EventDashboard() {
   const params = useParams();
@@ -936,8 +1020,10 @@ export default function EventDashboard() {
 
   const t = jezik === 'BS' ? PREVODI.BS : PREVODI.EN;
   const tabs = TABS_RAW
-      .filter(tab => mozeSve || (tab.id !== 'settings' && tab.id !== 'participants'))
+    .filter(tab => mozeSve ? tab.id !== 'info' : tab.id !== 'settings' && tab.id !== 'participants')
     .map(tab => ({ id: tab.id, name: jezik === 'BS' ? tab.bs : tab.en }));
+  const selectedTab = tabs.some(tab => tab.id === activeTab) ? activeTab : 'photos';
+  const dobrodoslica = mozeSve ? t.dobrodosli : t.dobrodosliGost;
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-12 font-sans overflow-x-hidden w-full max-w-[100vw]">
@@ -951,23 +1037,24 @@ export default function EventDashboard() {
           ) : (
             <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight truncate">{eventName}</h1>
           )}
-          <p className="text-gray-400 mt-2 text-sm md:text-lg">{t.dobrodosli}</p>
+          <p className="text-gray-400 mt-2 text-sm md:text-lg">{dobrodoslica}</p>
         </header>
 
         <nav className="flex w-full justify-between border-b border-white/10 mb-8">
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => router.replace(`${pathname}?tab=${tab.id}`)}
-              className={`flex-1 text-center py-3 px-1 text-[10px] sm:text-[13px] font-bold transition-all truncate ${activeTab === tab.id ? 'text-white border-b-[3px] border-white' : 'text-gray-500 hover:text-gray-300'}`}>
+              className={`flex-1 text-center py-3 px-1 text-[10px] sm:text-[13px] font-bold transition-all truncate ${selectedTab === tab.id ? 'text-white border-b-[3px] border-white' : 'text-gray-500 hover:text-gray-300'}`}>
               {tab.name}
             </button>
           ))}
         </nav>
 
         <div className="mt-6 min-h-100 w-full">
-          {activeTab === 'photos' && <PhotosTab eventId={id} t={t} mozeSve={mozeSve} />}
-          {activeTab === 'albums' && <AlbumsTab eventId={id} t={t} mozeSve={mozeSve} jeAdmin={jeAdmin} />}
-          {activeTab === 'participants' && mozeSve && <ParticipantsTab eventId={id} t={t} />}
-          {activeTab === 'settings' && mozeSve && <SettingsTab eventId={id} t={t} />}
+          {selectedTab === 'photos' && <PhotosTab eventId={id} t={t} mozeSve={mozeSve} />}
+          {selectedTab === 'albums' && <AlbumsTab eventId={id} t={t} mozeSve={mozeSve} jeAdmin={jeAdmin} />}
+          {selectedTab === 'participants' && mozeSve && <ParticipantsTab eventId={id} t={t} />}
+          {selectedTab === 'settings' && mozeSve && <SettingsTab eventId={id} t={t} />}
+          {selectedTab === 'info' && !mozeSve && <InfoTab eventId={id} t={t} jezik={jezik} />}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { ApiFotografija, ApiAITag, analizirajSliku, prihvatiSveAITagove, odbijSveAITagove, prihvatiAITag, odbijAITag } from '@/lib/api';
+import { ApiFotografija, ApiAITag, analizirajSliku, prihvatiSveAITagove, odbijSveAITagove, prihvatiAITag, odbijAITag, obrisiAITag } from '@/lib/api';
 
 const PREVODI = {
   BS: {
@@ -15,6 +15,7 @@ const PREVODI = {
     sakrij: 'Sakrij',
     noviTagovi: 'Novi AI tagovi su dostupni!',
     nemaTagova: 'AI nije predložio tagove za ovu sliku.',
+    obrisi: 'Obriši tag',
   },
   EN: {
     aiTagovi: '🤖 AI Tags',
@@ -28,6 +29,7 @@ const PREVODI = {
     sakrij: 'Hide',
     noviTagovi: 'New AI tags are available!',
     nemaTagova: 'AI did not suggest tags for this photo.',
+    obrisi: 'Delete tag',
   }
 };
 
@@ -44,16 +46,30 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [processingIds, setProcessingIds] = useState<Set<number>>(new Set());
+  const [autoStarted, setAutoStarted] = useState(false);
   const autoStartedRef = React.useRef(false);
   const initialPhotoIdRef = React.useRef(fotografija.id);
 
   useEffect(() => {
+    let animationFrameId: number | null = null;
+
     if (initialPhotoIdRef.current !== fotografija.id) {
       initialPhotoIdRef.current = fotografija.id;
       autoStartedRef.current = false;
-      setError(null);
+      animationFrameId = window.requestAnimationFrame(() => {
+        setAutoStarted(false);
+        setError(null);
+        setAITagovi(fotografija.ai_tagovi || []);
+      });
+    } else {
+      animationFrameId = window.requestAnimationFrame(() => {
+        setAITagovi(fotografija.ai_tagovi || []);
+      });
     }
-    setAITagovi(fotografija.ai_tagovi || []);
+
+    return () => {
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+    };
   }, [fotografija.id, fotografija.ai_tagovi]);
 
   useEffect(() => {
@@ -62,6 +78,7 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
 
     autoStartedRef.current = true;
     void (async () => {
+      setAutoStarted(true);
       setLoading(true);
       setError(null);
       try {
@@ -153,6 +170,23 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
     }
   };
 
+  const handleDeleteOne = async (tagId: number) => {
+    setProcessingIds(prev => new Set([...prev, tagId]));
+    try {
+      await obrisiAITag(fotografija.id, tagId);
+      setAITagovi(prev => prev.filter(tag => tag.id !== tagId));
+      onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Greška');
+    } finally {
+      setProcessingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(tagId);
+        return newSet;
+      });
+    }
+  };
+
   if (aiTagovi.length === 0) {
     return (
       <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-6 space-y-3">
@@ -168,7 +202,7 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
             {error}
           </p>
         )}
-        {!loading && !error && autoStartedRef.current && (
+        {!loading && !error && autoStarted && (
           <p className="text-sm text-blue-100/80">{t.nemaTagova}</p>
         )}
       </div>
@@ -189,6 +223,16 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
                   className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-3 py-2 flex items-center gap-2"
                 >
                   <span className="text-sm font-bold">{tag.tag_naziv}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteOne(tag.id)}
+                    disabled={processingIds.has(tag.id)}
+                    aria-label={t.obrisi}
+                    title={t.obrisi}
+                    className="ml-1 h-6 w-6 rounded-full bg-black/20 text-yellow-100/80 hover:bg-red-600 hover:text-white disabled:opacity-50 transition-all flex items-center justify-center text-xs"
+                  >
+                    ✕
+                  </button>
                 </div>
               ))}
             </div>
@@ -247,6 +291,16 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
                 >
                   ✕
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteOne(tag.id)}
+                  disabled={processingIds.has(tag.id)}
+                  aria-label={t.obrisi}
+                  title={t.obrisi}
+                  className="px-3 py-1 bg-white/10 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold rounded transition-all"
+                >
+                  🗑
+                </button>
               </div>
             </div>
           ))}
@@ -261,9 +315,19 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
             {acceptedTags.map(tag => (
               <span
                 key={tag.id}
-                className="bg-green-500/20 border border-green-500/30 rounded-lg px-3 py-1 text-xs font-semibold text-green-300"
+                className="bg-green-500/20 border border-green-500/30 rounded-lg px-3 py-1 text-xs font-semibold text-green-300 inline-flex items-center gap-2"
               >
                 {tag.tag_naziv}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteOne(tag.id)}
+                  disabled={processingIds.has(tag.id)}
+                  aria-label={t.obrisi}
+                  title={t.obrisi}
+                  className="text-green-100/70 hover:text-red-300 disabled:opacity-50 transition-colors"
+                >
+                  ✕
+                </button>
               </span>
             ))}
           </div>
@@ -278,9 +342,19 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
             {rejectedTags.map(tag => (
               <span
                 key={tag.id}
-                className="bg-red-500/20 border border-red-500/30 rounded-lg px-3 py-1 text-xs font-semibold text-red-300"
+                className="bg-red-500/20 border border-red-500/30 rounded-lg px-3 py-1 text-xs font-semibold text-red-300 inline-flex items-center gap-2"
               >
                 {tag.tag_naziv}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteOne(tag.id)}
+                  disabled={processingIds.has(tag.id)}
+                  aria-label={t.obrisi}
+                  title={t.obrisi}
+                  className="text-red-100/70 hover:text-white disabled:opacity-50 transition-colors"
+                >
+                  ✕
+                </button>
               </span>
             ))}
           </div>
@@ -295,6 +369,3 @@ export default function AITagReview({ fotografija, onRefresh, jezik }: AITagRevi
     </div>
   );
 }
-
-
-

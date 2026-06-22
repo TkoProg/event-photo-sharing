@@ -13,7 +13,7 @@ import {
   ApiFotografija,
   ApiKomentar, getTrenutniKorisnik,
   deleteKomentar, ApiKorisnik, getUcesnici,
-  dodajTag, deleteTag, ApiTag
+  dodajTag, deleteTag, ApiTag, obrisiAITag
 } from '@/lib/api';
 
 // Local typed shape for AI tags (backend returns these but ApiFotografija in this file may not include them)
@@ -38,6 +38,7 @@ const PREVODI = {
     sigurna: 'Želiš li trajno obrisati ovu sliku?',
     odustani: 'Odustani',
     izbrisi: 'Izbriši',
+    obrisiAITag: 'Obriši AI tag',
     nemaKomentara: 'Još nema komentara.',
     greska: 'Greška. Pokušaj ponovo.',
     ucitavanje: 'Učitavanje...',
@@ -60,6 +61,7 @@ const PREVODI = {
     sigurna: 'Do you want to permanently delete this photo?',
     odustani: 'Cancel',
     izbrisi: 'Delete',
+    obrisiAITag: 'Delete AI tag',
     nemaKomentara: 'No comments yet.',
     greska: 'Error. Please try again.',
     ucitavanje: 'Loading...',
@@ -112,29 +114,45 @@ export default function PhotoDetail() {
   const [fokusiraniIndex, setFokusiraniIndex] = useState(-1);
   const [prikaziPrijedloge, setPrikaziPrijedloge] = useState(false);
   const [tagovi, setTagovi] = useState<ApiTag[]>([]);
+  const [deletingAITagId, setDeletingAITagId] = useState<number | null>(null);
 
   // Jezik provjera
   useEffect(() => {
     const sacuvani = localStorage.getItem('izabraniJezik');
-    if (sacuvani) setJezik(sacuvani);
+    let animationFrameId: number | null = null;
+
+    if (sacuvani) {
+      animationFrameId = window.requestAnimationFrame(() => setJezik(sacuvani));
+    }
+
     const provjeri = () => {
       const trenutni = localStorage.getItem('izabraniJezik');
       if (trenutni) setJezik(trenutni);
     };
     window.addEventListener('storage', provjeri);
-    return () => window.removeEventListener('storage', provjeri);
+
+    return () => {
+      window.removeEventListener('storage', provjeri);
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+    };
   }, []);
 
   // Učitaj sliku, komentare i niz slika za listanje
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
+    let cancelled = false;
 
-    Promise.all([
-      getFotografija(id),
-      getKomentari(id),
-    ])
-      .then(([foto, kom]) => {
+    void Promise.resolve().then(async () => {
+      setLoading(true);
+
+      try {
+        const [foto, kom] = await Promise.all([
+          getFotografija(id),
+          getKomentari(id),
+        ]);
+
+        if (cancelled) return;
+
         setPhoto(foto);
         setKomentari(kom);
 
@@ -148,24 +166,36 @@ export default function PhotoDetail() {
 
         if (mozeSve) {
           getUcesnici(foto.event_id)
-            .then(lista => setUcesnici(dodajTrenutnogKorisnika(lista)))
-            .catch(() => setUcesnici(dodajTrenutnogKorisnika([])));
+            .then(lista => {
+              if (!cancelled) setUcesnici(dodajTrenutnogKorisnika(lista));
+            })
+            .catch(() => {
+              if (!cancelled) setUcesnici(dodajTrenutnogKorisnika([]));
+            });
         } else {
           setUcesnici(dodajTrenutnogKorisnika([]));
         }
 
         setTagovi(foto.tagovi || []);
-        return getFotografije(foto.event_id);
-      })
-      .then((sveSlike) => {
+        const sveSlike = await getFotografije(foto.event_id);
+
+        if (cancelled) return;
+
         // Sortiramo isto kao na galeriji (od najnovije)
         const sorted = [...sveSlike].sort((a, b) => b.id - a.id);
         setPhotosList(sorted);
         const idx = sorted.findIndex(p => p.id === id);
         setCurrentIndex(idx);
-      })
-      .catch(() => setError(PREVODI[jezik === 'BS' ? 'BS' : 'EN'].greska))
-      .finally(() => setLoading(false));
+      } catch {
+        if (!cancelled) setError(PREVODI[jezik === 'BS' ? 'BS' : 'EN'].greska);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [id, jezik, mozeSve, trenutniKorisnik]);
 
   const t = jezik === 'BS' ? PREVODI.BS : PREVODI.EN;
@@ -286,6 +316,20 @@ const handleAddTag = async (e: React.FormEvent) => {
       setTagovi(prev => prev.filter(tag => tag.id !== tagId));
     } catch (error) {
       setError(t.greska);
+    }
+  };
+
+  const handleRemoveAITag = async (tagId: number) => {
+    if (!photo) return;
+
+    try {
+      setDeletingAITagId(tagId);
+      const updated = await obrisiAITag(photo.id, tagId);
+      setPhoto(updated);
+    } catch {
+      setError(t.greska);
+    } finally {
+      setDeletingAITagId(null);
     }
   };
 
@@ -448,9 +492,23 @@ const handleAddTag = async (e: React.FormEvent) => {
               {(() => {
                 const aiTags = ((photo as unknown) as ApiFotografija & { ai_tagovi?: LocalApiAITag[] }).ai_tagovi || [];
                 const accepted = aiTags.filter(a => a.status === 'ACCEPTED');
+                const mozeObrisatiAITag = Boolean(mozeSve || photo.korisnik_id === korisnikId);
+
                 return accepted.map(ai => (
                   <span key={`ai-${ai.id}`} className="bg-transparent border border-yellow-500/30 text-xs px-3 py-1.5 rounded-lg text-yellow-300 font-semibold flex items-center gap-2">
                     🤖 {ai.tag_naziv}
+                    {mozeObrisatiAITag && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAITag(ai.id)}
+                        disabled={deletingAITagId === ai.id}
+                        className="text-yellow-100/60 hover:text-red-300 disabled:opacity-50 transition-colors"
+                        aria-label={t.obrisiAITag}
+                        title={t.obrisiAITag}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </span>
                 ));
               })()}

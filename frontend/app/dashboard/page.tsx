@@ -170,6 +170,33 @@ export default function DashboardPage() {
           {t.opis}
         </p>
 
+        <div className="relative w-full max-w-4xl h-[250px] sm:h-[360px] md:h-[400px] mb-12 sm:mb-16 md:mb-20">
+          <div className="absolute top-12 left-1/2 -translate-x-[95%] w-[8.5rem] h-[10.5rem] bg-gray-800 rounded-2xl rotate-[-12deg] overflow-hidden border border-white/10 shadow-2xl hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer hover:z-30 sm:top-10 sm:left-5 sm:translate-x-0 sm:w-64 sm:h-[16.5rem] sm:hover:scale-110">
+            <img 
+              src="https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=600" 
+              className="w-full h-full object-cover opacity-70 hover:opacity-100 transition-opacity" 
+              alt="Svadba" 
+            />
+          </div>
+
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-60 bg-gray-800 rounded-2xl z-20 overflow-hidden border border-white/20 shadow-[0_0_50px_rgba(230,0,35,0.15)] hover:scale-105 transition-all duration-500 cursor-pointer sm:w-80 sm:h-[22rem]">
+            <img 
+              src="https://images.unsplash.com/photo-1527529482837-4698179dc6ce?q=80&w=800" 
+              className="w-full h-full object-cover" 
+              alt="Proslava" 
+            />
+          </div>
+
+          <div className="absolute top-12 left-1/2 translate-x-[-5%] w-[8.5rem] h-[10.5rem] bg-gray-800 rounded-2xl rotate-[12deg] overflow-hidden border border-white/10 shadow-2xl hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer hover:z-30 sm:top-10 sm:left-auto sm:right-5 sm:translate-x-0 sm:w-64 sm:h-[16.5rem] sm:hover:scale-110">
+            <img 
+              src="https://images.unsplash.com/photo-1530103043960-ef38714abb15?q=80&w=600" 
+              className="w-full h-full object-cover opacity-70 hover:opacity-100 transition-opacity" 
+              alt="Zabava" 
+            />
+          </div>
+        </div>
+
+
         {jeGost && (
           <Link href="/join" className="w-full max-w-xl mb-10 sm:mb-14 group">
             <div className="bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-5 group-hover:border-[#e60023]/50 transition-all sm:p-6 sm:rounded-[2rem]">
@@ -206,31 +233,6 @@ export default function DashboardPage() {
           </Link>
         )}
 
-        <div className="relative w-full max-w-4xl h-[250px] sm:h-[360px] md:h-[400px] mb-12 sm:mb-16 md:mb-20">
-          <div className="absolute top-12 left-1/2 -translate-x-[95%] w-[8.5rem] h-[10.5rem] bg-gray-800 rounded-2xl rotate-[-12deg] overflow-hidden border border-white/10 shadow-2xl hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer hover:z-30 sm:top-10 sm:left-5 sm:translate-x-0 sm:w-64 sm:h-[16.5rem] sm:hover:scale-110">
-            <img 
-              src="https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=600" 
-              className="w-full h-full object-cover opacity-70 hover:opacity-100 transition-opacity" 
-              alt="Svadba" 
-            />
-          </div>
-
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-60 bg-gray-800 rounded-2xl z-20 overflow-hidden border border-white/20 shadow-[0_0_50px_rgba(230,0,35,0.15)] hover:scale-105 transition-all duration-500 cursor-pointer sm:w-80 sm:h-[22rem]">
-            <img 
-              src="https://images.unsplash.com/photo-1527529482837-4698179dc6ce?q=80&w=800" 
-              className="w-full h-full object-cover" 
-              alt="Proslava" 
-            />
-          </div>
-
-          <div className="absolute top-12 left-1/2 translate-x-[-5%] w-[8.5rem] h-[10.5rem] bg-gray-800 rounded-2xl rotate-[12deg] overflow-hidden border border-white/10 shadow-2xl hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer hover:z-30 sm:top-10 sm:left-auto sm:right-5 sm:translate-x-0 sm:w-64 sm:h-[16.5rem] sm:hover:scale-110">
-            <img 
-              src="https://images.unsplash.com/photo-1530103043960-ef38714abb15?q=80&w=600" 
-              className="w-full h-full object-cover opacity-70 hover:opacity-100 transition-opacity" 
-              alt="Zabava" 
-            />
-          </div>
-        </div>
 
         <div className="flex flex-col items-center gap-10 w-full max-w-lg mx-auto z-20 pb-12 sm:gap-16 sm:pb-20">
           <div className="relative max-w-full">

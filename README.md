@@ -2,6 +2,9 @@
 
 Flashback je full-stack aplikacija za dijeljenje fotografija i videa sa dogadjaja. Ideja je da organizator napravi dogadjaj, podijeli kod gostima, a gosti onda mogu pristupiti galeriji, uploadovati slike i vidjeti zajednicke uspomene.
 
+# Deployment
+Aplikacija je deployana na [Flashback](https://flashback.social/).
+
 Projekat ima dva glavna dijela:
 
 ```txt
